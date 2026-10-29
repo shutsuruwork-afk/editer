@@ -196,6 +196,8 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
 }
 .doc { white-space: pre-wrap; overflow-wrap: anywhere; }
 .doc p { margin: 0; }
+/* Flipped after each change to make WebKit redraw the paragraph (see "redraw" in the script). */
+.doc > .rp { outline: 1px solid transparent; }
 .doc h1, .doc h2, .doc h3 { margin: 0; margin-block: 1.1em 0.5em; font-family: var(--f-head); font-weight: 700; line-height: 1.45; }
 .doc h1 { font-size: 1.6em; }
 .doc h2 { font-size: 1.3em; }
@@ -2160,6 +2162,22 @@ body.ios-vcaret #editor { caret-color: transparent; }
     fakeCaret.style.animation = 'none';
     void fakeCaret.offsetWidth;
     fakeCaret.style.animation = '';
+  }
+
+  // WebKit (Safari, and every browser on the iPhone) does not fully redraw vertical text that changes inside
+  // a scrolling box: deleted characters stay on screen and typed ones may not show until something else
+  // redraws. A style change on a paragraph redraws all of it, so flip an invisible one (an outline, which
+  // editing never copies into the text) on every paragraph whose text changed.
+  const redrawFix = isIOS || (/AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Android/.test(navigator.userAgent));
+  if (redrawFix) {
+    new MutationObserver((records) => {
+      if (!state.settings.vertical) return;
+      const done = new Set();
+      for (const r of records) {
+        const el = blockOf(r.target);
+        if (el && !done.has(el)) { done.add(el); el.classList.toggle('rp'); }
+      }
+    }).observe(editor, { characterData: true, childList: true, subtree: true });
   }
 
   // Swipe the outline to the left, or the bottom sheet down, to close them.
