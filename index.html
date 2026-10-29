@@ -7,7 +7,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&family=Shippori+Mincho+B1:wght@700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <style>
-/* Layout: one slim bar on top, the manuscript fills everything else; chapters slide in from the left, tools open on the right only when asked */
+/* Layout: one slim bar on top, the manuscript fills everything else; the outline slides in from the left, tools open on the right only when asked */
 :root {
   --sheet: #fcfcfb;
   --paper: #f3f5f8;
@@ -24,6 +24,7 @@
   --f-ui: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
   --f-display: "Shippori Mincho B1", "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
   --f-text: var(--f-body);
+  --f-head: var(--f-display);
   --fs: 18px;
   --lh: 1.9;
   --line-chars: 40;
@@ -75,13 +76,15 @@ svg { display: block; }
 body.typing .bar { opacity: 0.3; }
 body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
 #btnDrawer { grid-area: drawer; }
-.ch-title {
-  grid-area: title; min-width: 0; height: 34px;
-  border: 1px solid transparent; border-radius: 6px; background: transparent;
-  padding: 0 8px; font-family: var(--f-display); font-size: 16px; text-overflow: ellipsis;
+.crumb {
+  grid-area: title; min-width: 0; height: 34px; display: flex; align-items: center; gap: 6px;
+  padding: 0 8px; border: 0; border-radius: 6px; background: transparent; cursor: pointer;
+  font-family: var(--f-display); font-size: 15px; color: var(--ink); white-space: nowrap; overflow: hidden; text-align: left;
 }
-.ch-title:hover { border-color: var(--rule); }
-.ch-title:focus { outline: none; border-color: var(--ai); background: var(--paper); }
+.crumb:hover { background: var(--hover); }
+.crumb-part { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.crumb-sep { flex: none; color: var(--ink-soft); font-family: var(--f-ui); }
+.crumb-title { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; }
 .bar-tools { grid-area: tools; min-width: 0; display: flex; align-items: center; gap: 4px; }
 .bar-end { grid-area: end; position: relative; display: flex; align-items: center; gap: 2px; }
 .sep { flex: none; width: 1px; height: 18px; background: var(--rule); margin: 0 4px; }
@@ -96,6 +99,9 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
 .tbtn:disabled { opacity: 0.35; cursor: default; background: transparent; }
 .tbtn.glyph { font-family: var(--f-body); font-size: 14px; }
 .tbtn svg { width: 16px; height: 16px; }
+.level-btn { min-width: 6.4em; justify-content: space-between; background: var(--hover); font-weight: 500; }
+.level-btn:hover { background: var(--ai-soft); }
+.level-btn svg { width: 12px; height: 12px; color: var(--ink-soft); }
 .icon {
   flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px;
   border: 0; border-radius: 6px; background: transparent; color: var(--ink-soft); cursor: pointer;
@@ -138,9 +144,18 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
   font-size: 13px; cursor: pointer;
 }
 .menu button:hover { background: var(--hover); }
-.stats { width: 270px; padding: 14px; display: flex; flex-direction: column; gap: 12px; font-variant-numeric: tabular-nums; }
+.menu kbd { font-family: var(--f-ui); font-size: 11px; color: var(--ink-soft); }
+.levels { right: auto; width: 250px; }
+.levels button[aria-checked="true"] { background: var(--ai-soft); }
+.lv-sample { font-family: var(--f-head); font-weight: 700; line-height: 1.3; }
+.lv-sample.l1 { font-size: 21px; }
+.lv-sample.l2 { font-size: 17px; }
+.lv-sample.l3 { font-size: 14.5px; }
+.lv-sample.l0 { font-family: var(--f-text); font-weight: 400; font-size: 13px; }
+.levels .muted { padding: 6px 10px 4px; border-top: 1px solid var(--rule); margin-top: 4px; }
+.stats { width: 280px; padding: 14px; display: flex; flex-direction: column; gap: 12px; font-variant-numeric: tabular-nums; }
 .stat { display: flex; flex-direction: column; gap: 1px; }
-.stat-label { font-size: 11px; letter-spacing: 0.08em; color: var(--ink-soft); }
+.stat-label { font-size: 11px; letter-spacing: 0.06em; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stat-main { font-size: 13px; }
 .stat-main b { font-size: 20px; font-weight: 500; }
 .stat-sub { font-size: 12px; color: var(--ink-soft); }
@@ -160,15 +175,12 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
 }
 .find-row input:focus { outline: none; border-color: var(--ai); }
 .find-count { min-width: 5.5em; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.find-other { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
-.chip { border: 1px solid var(--rule); border-radius: 999px; padding: 2px 10px; background: transparent; font-size: 12px; cursor: pointer; }
-.chip:hover { border-color: var(--ai); color: var(--ai); }
 
 /* ---------- writing area ---------- */
 .main { display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 0; }
 .stage { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; }
 .writing {
-  margin: 0; border: 0; outline: none; resize: none; background: transparent; color: var(--ink);
+  margin: 0; border: 0; outline: none; background: transparent; color: var(--ink);
   font-family: var(--f-text); font-size: var(--fs); line-height: var(--lh); font-kerning: none;
   overflow: auto;
 }
@@ -180,14 +192,20 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
   writing-mode: horizontal-tb; padding: 2em;
   height: 100%; width: min(100%, calc(var(--line-chars) * 1em + 4em + 18px));
 }
-.writing::placeholder { color: var(--ink-soft); }
-#preview p { margin: 0; }
-#preview .pv-title { margin: 0; font-family: var(--f-display); font-size: 1.25em; font-weight: 700; }
-.vertical #preview .pv-title { margin-left: 2em; margin-top: 2em; }
-.horizontal #preview .pv-title { margin-bottom: 1.5em; }
-#preview rt { font-size: 0.5em; font-family: var(--f-text); }
+.doc { white-space: pre-wrap; overflow-wrap: anywhere; }
+.doc p { margin: 0; }
+.doc h1, .doc h2, .doc h3 { margin: 0; margin-block: 1.1em 0.5em; font-family: var(--f-head); font-weight: 700; line-height: 1.45; }
+.doc h1 { font-size: 1.6em; }
+.doc h2 { font-size: 1.3em; }
+.doc h3 { font-size: 1.1em; }
+.doc > :first-child { margin-block-start: 0; }
+#editor { caret-color: var(--ai); }
+#preview rt { font-size: 0.5em; font-family: var(--f-text); font-weight: 400; }
 #preview .bouten { font-style: normal; -webkit-text-emphasis: sesame; text-emphasis: sesame; }
 #preview .tcy { -webkit-text-combine: horizontal; text-combine-upright: all; }
+::highlight(find) { background-color: rgb(232 168 40 / 0.32); }
+::highlight(find-current) { background-color: rgb(236 150 20 / 0.85); color: #16130c; }
+::highlight(check) { background-color: rgb(214 82 52 / 0.22); }
 
 .hint {
   position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
@@ -230,7 +248,7 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
   padding: 7px 9px; cursor: pointer; display: flex; flex-direction: column; gap: 2px;
 }
 .hit:hover { border-color: var(--ai); }
-.hit .where { font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.hit .where { font-size: 11px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hit .msg { font-size: 12px; }
 .hit .snip { font-family: var(--f-body); font-size: 13px; white-space: pre-wrap; word-break: break-all; }
 .hit .snip mark { background: var(--shu-soft); color: var(--shu); border-radius: 2px; }
@@ -241,8 +259,9 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
 .table .mono { font-family: var(--f-body); }
 .table kbd { font-family: var(--f-ui); }
 .confirm-box { border: 1px solid var(--shu); background: var(--shu-soft); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.note-box { border: 1px solid var(--rule); background: var(--sheet); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 
-/* ---------- chapters drawer ---------- */
+/* ---------- outline drawer ---------- */
 .drawer {
   position: fixed; z-index: 40; top: 0; bottom: 0; left: 0; width: min(86vw, 320px);
   display: flex; flex-direction: column; gap: 14px; overflow: auto;
@@ -265,21 +284,21 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
 }
 .work-title:focus { outline: none; border-color: var(--ai); }
 .label { font-size: 11px; letter-spacing: 0.12em; color: var(--ink-soft); font-weight: 500; }
-.ch-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.ch-item { border-radius: 6px; }
-.ch-item.is-current { background: var(--ai-soft); }
-.ch-open {
+.toc { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.toc-item {
   width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
-  padding: 8px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer;
+  padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer;
 }
-.ch-open:hover { background: var(--hover); }
-.is-current .ch-open:hover { background: transparent; }
-.ch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--f-body); font-size: 14px; }
-.is-current .ch-name { font-weight: 600; }
-.ch-count { flex: none; font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.ch-actions { display: flex; gap: 2px; padding: 0 4px 4px; }
-.ch-actions .tbtn { height: 26px; padding: 0 8px; font-size: 12px; color: var(--ink-soft); }
-.add-ch { justify-content: center; border: 1px dashed var(--rule); height: 36px; }
+.toc-item:hover { background: var(--hover); }
+.toc-item.is-current { background: var(--ai-soft); }
+.toc-item.lv2 { padding-left: 22px; }
+.toc-item.lv3 { padding-left: 36px; }
+.toc-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--f-body); }
+.toc-item.lv1 .toc-name { font-size: 14.5px; font-weight: 600; }
+.toc-item.lv2 .toc-name { font-size: 13.5px; }
+.toc-item.lv3 .toc-name { font-size: 13px; color: var(--ink-soft); }
+.toc-count { flex: none; font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.toc-empty { font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; margin: 0; }
 .work-total { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .work-total b { color: var(--ink); font-size: 15px; font-weight: 500; }
 
@@ -293,14 +312,14 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
 .toast button { border: 0; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; padding: 2px 4px; }
 
 /* ---------- narrower screens ---------- */
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .bar { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "drawer title end" "tools tools tools"; }
   .bar-tools { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
   .bar-tools::-webkit-scrollbar { display: none; }
 }
 @media (max-width: 640px) {
   .cnt-genko, .save-text { display: none; }
-  .ch-title { font-size: 15px; }
+  .crumb-part:not(:last-child), .crumb-sep { display: none; }
   .main { grid-template-columns: minmax(0, 1fr); }
   .find-row { gap: 4px; }
   .find-row input { flex-basis: 110px; max-width: none; }
@@ -321,11 +340,16 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
 <body>
 <div id="app" lang="ja">
   <header class="bar" id="bar">
-    <button type="button" class="icon" id="btnDrawer" aria-label="作品と章の一覧" aria-expanded="false" title="作品と章の一覧">
+    <button type="button" class="icon" id="btnDrawer" aria-label="目次" aria-expanded="false" title="目次（見出しから自動で作られます）">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
-    <input id="chTitle" class="ch-title" type="text" aria-label="章タイトル" placeholder="章タイトル" autocomplete="off">
+    <button type="button" class="crumb" id="crumb" title="目次を開く"></button>
     <div class="bar-tools" id="barTools" role="toolbar" aria-label="執筆ツール">
+      <button type="button" class="tbtn level-btn" id="btnLevel" aria-haspopup="menu" aria-expanded="false" title="段落の種類（見出しにすると目次に章として並びます）">
+        <span id="levelLabel">本文</span>
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+      </button>
+      <span class="sep" aria-hidden="true"></span>
       <button type="button" class="tbtn" data-ins="ruby" title="ルビ：文字を選んでから押す。漢字の直後なら、そのまま押して読みを入力">ルビ</button>
       <button type="button" class="tbtn" data-ins="bouten" title="傍点：文字を選んでから押す">傍点</button>
       <button type="button" class="tbtn glyph" data-ins="dash" title="ダッシュ（――）" aria-label="ダッシュを入力">――</button>
@@ -353,14 +377,14 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
 
       <div class="pop stats" id="statsPop" role="dialog" aria-label="文字数と目標" hidden>
         <div class="stat">
-          <span class="stat-label">この章</span>
+          <span class="stat-label" id="stSecLabel">この章</span>
           <span class="stat-main"><b id="stChars">0</b> 字</span>
           <span class="stat-sub">原稿用紙（400字詰め）約 <span id="stGenko">0</span> 枚</span>
         </div>
         <div class="stat">
-          <span class="stat-label">作品全体（<span id="stChapters">0</span>章）</span>
+          <span class="stat-label">作品全体</span>
           <span class="stat-main"><b id="stTotal">0</b> 字</span>
-          <span class="stat-sub">原稿用紙 約 <span id="stTotalGenko">0</span> 枚</span>
+          <span class="stat-sub">原稿用紙 約 <span id="stTotalGenko">0</span> 枚 ・ 見出しは数えません</span>
         </div>
         <label class="goal-set">1章の目標 <input type="number" id="targetInput" min="0" step="500" inputmode="numeric"> 字</label>
         <div class="goal-bar" id="goalBar"><i id="goalFill"></i></div>
@@ -374,6 +398,14 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
         <button type="button" role="menuitem" data-open="file"><span>書き出し・読み込み</span></button>
         <button type="button" role="menuitem" id="btnFull"><span id="fullLabel">全画面表示</span></button>
       </div>
+    </div>
+
+    <div class="pop menu levels" id="levelPop" role="menu" aria-label="段落の種類" hidden>
+      <button type="button" role="menuitemradio" data-level="1" aria-checked="false"><span class="lv-sample l1">大見出し</span><kbd>Ctrl+Alt+1</kbd></button>
+      <button type="button" role="menuitemradio" data-level="2" aria-checked="false"><span class="lv-sample l2">中見出し</span><kbd>Ctrl+Alt+2</kbd></button>
+      <button type="button" role="menuitemradio" data-level="3" aria-checked="false"><span class="lv-sample l3">小見出し</span><kbd>Ctrl+Alt+3</kbd></button>
+      <button type="button" role="menuitemradio" data-level="0" aria-checked="true"><span class="lv-sample l0">本文</span><kbd>Ctrl+Alt+0</kbd></button>
+      <p class="muted">見出しは ☰ の目次に章として並びます。行頭で「# 」と打っても見出しになります。</p>
     </div>
     <div class="goal-line" id="goalLine" aria-hidden="true"><i id="goalLineFill"></i></div>
   </header>
@@ -394,15 +426,14 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
       <button type="button" class="tbtn" id="replOne">置換して次へ</button>
       <button type="button" class="tbtn" id="replAll">すべて置換</button>
     </div>
-    <div class="find-other" id="findOther" hidden></div>
   </div>
 
   <div class="main">
     <div class="stage vertical" id="stage">
-      <textarea id="text" class="writing" spellcheck="false" aria-label="本文" placeholder="ここに本文を書きます"></textarea>
-      <div id="preview" class="writing" hidden tabindex="0" aria-label="プレビュー"></div>
+      <div id="editor" class="writing doc" contenteditable="true" spellcheck="false" role="textbox" aria-multiline="true" aria-label="本文" autocapitalize="off" autocorrect="off" translate="no"></div>
+      <div id="preview" class="writing doc" hidden tabindex="0" aria-label="プレビュー"></div>
       <div class="hint" id="sampleHint" hidden>
-        <span>見本の原稿です。書き換えて始めるか、左上の ☰ から章を追加できます。</span>
+        <span>見本の原稿です。行を選んでバーの「本文」を「大見出し」などに変えると、☰ の目次に章として並びます。</span>
         <button type="button" class="icon" id="hintClose" aria-label="案内を閉じる">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
@@ -412,17 +443,17 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
   </div>
 
   <div class="scrim" id="scrim" hidden></div>
-  <aside class="drawer" id="drawer" aria-label="作品と章">
+  <aside class="drawer" id="drawer" aria-label="作品と目次">
     <div class="drawer-head">
       <span class="seal" aria-hidden="true">稿</span><span class="brand">原稿帳</span>
-      <button type="button" class="icon" id="drawerClose" aria-label="一覧を閉じる">
+      <button type="button" class="icon" id="drawerClose" aria-label="目次を閉じる">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </div>
     <input id="workTitle" class="work-title" type="text" aria-label="作品タイトル" placeholder="作品タイトル" autocomplete="off">
-    <div class="label">章</div>
-    <ul class="ch-list" id="chList"></ul>
-    <button type="button" class="tbtn add-ch" id="btnAddChapter">＋ 章を追加</button>
+    <div class="label">目次</div>
+    <ol class="toc" id="toc"></ol>
+    <p class="toc-empty" id="tocEmpty" hidden>見出しはまだありません。行を選んでバーの「本文」を「大見出し」「中見出し」「小見出し」に変えると、ここに章として並びます。</p>
     <div class="work-total">作品全体 <b id="workChars">0</b> 字 ・ 原稿用紙 約<span id="workGenko">0</span>枚</div>
   </aside>
 
@@ -431,7 +462,7 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
 
 <template id="tpl-check">
   <div class="panel-head"><h2>表記チェック</h2><button type="button" class="icon" data-close aria-label="閉じる"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
-  <p class="muted">小説原稿の一般的な決まりごとに沿っているかを確かめます。項目を押すと該当箇所を選択します。</p>
+  <p class="muted">小説原稿の一般的な決まりごとに沿っているかを本文で確かめます。該当箇所は本文に色が付きます。項目を押すとその場所へ移動します。</p>
   <ul class="hits" id="checkList"></ul>
 </template>
 
@@ -452,12 +483,16 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
       <tr><td class="mono">漢字《かんじ》</td><td>漢字だけなら「｜」は省略可</td></tr>
       <tr><td class="mono">《《傍点》》</td><td>傍点</td></tr>
       <tr><td class="mono">｜《</td><td>「《」をそのまま表示</td></tr>
+      <tr><td class="mono"># 見出し</td><td>行頭で打つと大見出し（## 中・### 小）</td></tr>
     </table>
   </div>
   <div class="field"><span>キー操作</span>
     <table class="table">
       <tr><td><kbd>Enter</kbd></td><td>改行して字下げ</td></tr>
       <tr><td><kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>字下げせずに改行</td></tr>
+      <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd>〜<kbd>3</kbd></td><td>大・中・小見出し</td></tr>
+      <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>0</kbd></td><td>本文に戻す</td></tr>
+      <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd></td><td>元に戻す（Shift で やり直す）</td></tr>
       <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>F</kbd></td><td>検索・置換</td></tr>
       <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>G</kbd></td><td>次を検索（Shift で前）</td></tr>
       <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd></td><td>今すぐ保存</td></tr>
@@ -468,20 +503,20 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
 
 <template id="tpl-file">
   <div class="panel-head"><h2>書き出し・読み込み</h2><button type="button" class="icon" data-close aria-label="閉じる"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
-  <div class="field"><span>書き出し（.txt はルビ記法のままなので、小説投稿サイトにそのまま貼れます）</span>
+  <div class="field"><span>書き出し（.md は見出しを「#」で残す原稿の形式。.txt は見出しも1行の文として書き出します）</span>
     <div class="row">
-      <button type="button" class="btn" id="expChapter">この章を .txt</button>
-      <button type="button" class="btn" id="expAll">全章を .txt</button>
-      <button type="button" class="btn" id="expJson">バックアップ .json</button>
+      <button type="button" class="btn" id="expMd">原稿を .md</button>
+      <button type="button" class="btn" id="expTxt">原稿を .txt</button>
     </div>
   </div>
-  <div class="field"><span>コピー</span>
-    <div class="row"><button type="button" class="btn" id="copyChapter">この章の本文をコピー</button></div>
+  <div class="field"><span>コピー（小説投稿サイトに1話ずつ貼るときに）</span>
+    <div class="row"><button type="button" class="btn" id="copySection">この章の本文をコピー</button></div>
   </div>
-  <div class="field"><span>読み込み（.txt は新しい章として追加、.json はバックアップから復元。Shift_JIS のテキストも読めます）</span>
-    <input type="file" id="importFile" accept=".txt,.json,text/plain,application/json">
+  <div class="field"><span>読み込み（.md は原稿をまるごと置き換え、.txt は末尾に大見出し付きで追加。Shift_JIS のテキストや以前の .json バックアップも読めます）</span>
+    <input type="file" id="importFile" accept=".md,.markdown,.txt,.json,text/plain,text/markdown,application/json">
   </div>
   <div id="importConfirm"></div>
+  <div id="recoveredBox"></div>
   <p class="muted" id="storageNote"></p>
 </template>
 
@@ -490,21 +525,30 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
   'use strict';
   document.documentElement.lang = 'ja';
 
-  const LS_KEY = 'genkocho/v1';
+  const LS_KEY = 'genkocho/v2';
+  const LS_KEY_V1 = 'genkocho/v1';
   const OPEN_BRACKETS = '「『（(〈《【〔［“"‘\'';
+  const LEVEL_TAGS = ['P', 'H1', 'H2', 'H3'];
+  const LEVEL_NAMES = ['本文', '大見出し', '中見出し', '小見出し'];
+  const BLOCK_SET = new Set(LEVEL_TAGS);
+  const BLOCKISH = /^(DIV|LI|UL|OL|BLOCKQUOTE|H4|H5|H6|PRE|SECTION|ARTICLE|HEADER|FOOTER|TABLE|TR)$/;
   const $ = (s, root = document) => root.querySelector(s);
-  const ta = $('#text');
+  const editor = $('#editor');
   const preview = $('#preview');
   const stage = $('#stage');
   const findbar = $('#findbar');
   const panelEl = $('#panel');
   const isTouch = window.matchMedia('(pointer: coarse)').matches;
+  const HL = typeof CSS !== 'undefined' && !!CSS.highlights && typeof Highlight === 'function';
 
-  const SAMPLE = [
+  const SAMPLE_MD = [
+    '# 第一章　雨の古書店',
+    '## 一',
     '　駅前の商店街を抜けた先に、その古書店はあった。硝子《ガラス》戸の向こうで、店主の老人が|頁《ページ》をめくっている。',
     '　雨は朝から降りつづいていた。わたしは傘を畳み、軒下で肩の雫《しずく》を払った。時計は15時を回っていた。',
     '「いらっしゃい。濡れたでしょう」',
     '　老人は顔も上げずにそう言った。棚には背の焼けた文庫本が、隙間なく並んでいる。',
+    '## 二',
     '　一冊を手に取ると、間から細い紙片が落ちた。|栞《しおり》だった。押し花の、薄紫の《《すみれ》》が挟まれている。',
     '「それはね、前の持ち主が忘れていったものです」',
     '「返さなくていいんですか」',
@@ -513,32 +557,59 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     '「あの…また来ます」',
   ].join('\n');
 
-  const newId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const defaultSettings = () => ({ vertical: true, font: 'mincho', fs: 18, lh: 1.9, lineChars: 40, autoIndent: true, target: 5000, tcy: true, dimWhileTyping: true });
   function defaultState() {
-    const id = newId();
     return {
-      title: '（見本）雨宿りの古書店',
-      chapters: [{ id, title: '第一話　栞の持ち主', body: SAMPLE, updatedAt: 0 }],
-      currentId: id, settings: defaultSettings(),
-      metaUpdatedAt: 0, pristine: true, pending: [], metaPending: false,
-      carets: {}, hintDismissed: false,
+      v: 2, title: '（見本）雨宿りの古書店', md: SAMPLE_MD, settings: defaultSettings(),
+      updatedAt: 0, syncedAt: 0, dirty: false, pristine: true, caret: 0, hintDismissed: false, recovered: null,
     };
+  }
+
+  // ---------- markdown: one line = one block; "#", "##", "###" = headings ----------
+  function parseLine(line) {
+    const m = /^(#{1,3}) (.*)$/.exec(line);
+    if (m) return { level: m[1].length, text: m[2] };
+    if (line.startsWith('\\')) return { level: 0, text: line.slice(1) };
+    return { level: 0, text: line };
+  }
+  const fromMd = (md) => md.split('\n').map(parseLine);
+  const escapeLine = (t) => (/^(#{1,3} |\\)/.test(t) ? '\\' + t : t);
+  const lineOf = (b) => (b.level ? '#'.repeat(b.level) + ' ' + b.text : escapeLine(b.text));
+  const toMd = (bs) => bs.map(lineOf).join('\n');
+  function chaptersToMd(chapters) {
+    return chapters.map(c => ['# ' + (String(c.title || '').replace(/\n/g, ' ') || '無題'), ...String(c.body || '').split('\n').map(escapeLine)].join('\n')).join('\n');
   }
 
   // ---------- local storage ----------
   let localOk = true;
-  function loadLocal() {
+  function migrateV1(s) {
+    if (!s || !Array.isArray(s.chapters) || !s.chapters.length || s.pristine) return null;
+    const st = defaultState();
+    const lastEdit = Math.max(s.metaUpdatedAt || 0, ...s.chapters.map(c => c.updatedAt || 0));
+    st.title = String(s.title || '');
+    st.md = chaptersToMd(s.chapters);
+    st.settings = Object.assign(defaultSettings(), s.settings || {});
+    st.updatedAt = lastEdit;
+    st.dirty = (Array.isArray(s.pending) && s.pending.length > 0) || !!s.metaPending;
+    st.syncedAt = st.dirty ? 0 : lastEdit;
+    st.pristine = false;
+    st.hintDismissed = !!s.hintDismissed;
+    return st;
+  }
+  function loadState() {
     try {
       const raw = localStorage.getItem(LS_KEY);
-      if (!raw) return null;
-      const s = JSON.parse(raw);
-      if (!s || !Array.isArray(s.chapters) || !s.chapters.length) return null;
-      s.settings = Object.assign(defaultSettings(), s.settings || {});
-      s.pending = Array.isArray(s.pending) ? s.pending : [];
-      s.carets = s.carets && typeof s.carets === 'object' ? s.carets : {};
-      return s;
-    } catch { return null; }
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s && s.v === 2 && typeof s.md === 'string') {
+          s.settings = Object.assign(defaultSettings(), s.settings || {});
+          return Object.assign(defaultState(), s);
+        }
+      }
+      const raw1 = localStorage.getItem(LS_KEY_V1);
+      if (raw1) { const m = migrateV1(JSON.parse(raw1)); if (m) return m; }
+    } catch { /* start fresh */ }
+    return defaultState();
   }
   let localTimer = null;
   function saveLocalSoon() { clearTimeout(localTimer); localTimer = setTimeout(saveLocalNow, 300); }
@@ -548,44 +619,22 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     updateSaveState();
   }
 
-  let state = loadLocal() || defaultState();
+  let state = loadState();
   let viewMode = 'edit';
   let panel = null;
-
-  const cur = () => state.chapters.find(c => c.id === state.currentId) || state.chapters[0];
-
-  function markPending(id) {
-    if (!state.pending.includes(id)) state.pending.push(id);
-    scheduleSync(); saveLocalSoon();
-  }
-  function touchChapter(ch) { ch.updatedAt = Date.now(); state.pristine = false; markPending(ch.id); }
-  function touchMeta() {
-    state.metaUpdatedAt = Date.now(); state.pristine = false; state.metaPending = true;
-    scheduleSync(); saveLocalSoon();
-  }
 
   // ---------- text utilities ----------
   const PH = '';
   const RE_BOUTEN = /《《([^《》\n]+?)》》/g;
   const RE_RUBY = /[|｜]([^|｜《》\n]{1,50}?)《([^《》\n]{1,50}?)》/g;
   const RE_AUTORUBY = /([\p{Script=Han}々〆ヵヶ]+)《([^《》\n]{1,50}?)》/gu;
-
   function stripMarkup(t) {
     return t.replace(/[|｜]《/g, PH).replace(RE_BOUTEN, '$1').replace(RE_RUBY, '$1').replace(RE_AUTORUBY, '$1').replaceAll(PH, '《');
   }
   const cpLen = (s) => { let n = 0; for (const _ of s) n++; return n; };
-  function countChars(t) { return cpLen(stripMarkup(t).replace(/[\s　]/g, '')); }
-  function genkoSheets(t) {
-    const lines = stripMarkup(t).split('\n');
-    if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
-    let rows = 0;
-    for (const l of lines) rows += Math.max(1, Math.ceil(cpLen(l) / 20));
-    return t.trim() ? rows / 20 : 0;
-  }
+  const countChars = (t) => cpLen(stripMarkup(t).replace(/[\s　]/g, ''));
   const fmt = (n) => n.toLocaleString('ja-JP');
   const esc = (s) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const byteLen = (s) => new TextEncoder().encode(s).length;
-
   function lineToHtml(line, tcy) {
     let s = esc(line).replace(/[|｜]《/g, PH);
     s = s.replace(RE_BOUTEN, '<em class="bouten">$1</em>');
@@ -595,358 +644,487 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     return s.replaceAll(PH, '《');
   }
 
-  const countCache = new Map();
-  function chapterStats(ch) {
-    const c = countCache.get(ch.id);
-    if (c && c.body === ch.body) return c;
-    const v = { body: ch.body, chars: countChars(ch.body), genko: genkoSheets(ch.body) };
-    countCache.set(ch.id, v);
-    return v;
+  // ---------- document model ----------
+  // blocks mirror the editor's children; "plain" offsets count block texts joined by "\n".
+  let blocks = [];
+  let starts = [];
+  let plainCache = null;
+  const levelOf = (el) => Math.max(0, LEVEL_TAGS.indexOf(el.tagName));
+  function makeBlock(level, text) {
+    const el = document.createElement(LEVEL_TAGS[level]);
+    if (text) el.textContent = text; else el.append(document.createElement('br'));
+    return el;
+  }
+  function recompute() {
+    starts = new Array(blocks.length);
+    let o = 0;
+    for (let i = 0; i < blocks.length; i++) { starts[i] = o; o += blocks[i].text.length + 1; }
+    plainCache = null;
+  }
+  const plainLength = () => (blocks.length ? starts[blocks.length - 1] + blocks[blocks.length - 1].text.length : 0);
+  const plainText = () => (plainCache ??= blocks.map(b => b.text).join('\n'));
+  function renderEditor() {
+    if (!blocks.length) blocks = [{ level: 0, text: '' }];
+    const frag = document.createDocumentFragment();
+    for (const b of blocks) frag.append(makeBlock(b.level, b.text));
+    editor.replaceChildren(frag);
+    recompute();
+  }
+  function syncFromDom() {
+    blocks = Array.from(editor.children, el => ({ level: levelOf(el), text: el.textContent.replace(/ /g, ' ') }));
+    if (!blocks.length) renderEditor(); else recompute();
+  }
+  function patchBlocks(i, count, nb) {
+    const ref = editor.children[i + count] || null;
+    for (let j = 0; j < count; j++) { const el = editor.children[i]; if (el) el.remove(); }
+    const frag = document.createDocumentFragment();
+    for (const b of nb) frag.append(makeBlock(b.level, b.text));
+    editor.insertBefore(frag, ref);
+    blocks.splice(i, count, ...nb.map(b => ({ level: b.level, text: b.text })));
+    if (!blocks.length) { blocks.push({ level: 0, text: '' }); editor.append(makeBlock(0, '')); }
+    recompute();
+  }
+  function locate(off) {
+    if (off <= 0 || !blocks.length) return { i: 0, k: 0 };
+    let lo = 0, hi = blocks.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= off) lo = mid; else hi = mid - 1; }
+    return { i: lo, k: Math.max(0, Math.min(off - starts[lo], blocks[lo].text.length)) };
   }
 
-  // ---------- rendering ----------
-  function applySettings() {
-    const s = state.settings;
-    const root = document.documentElement.style;
-    root.setProperty('--fs', s.fs + 'px');
-    root.setProperty('--lh', String(s.lh));
-    root.setProperty('--line-chars', String(s.lineChars));
-    root.setProperty('--f-text', s.font === 'gothic' ? 'var(--f-ui)' : 'var(--f-body)');
-    stage.classList.toggle('vertical', s.vertical);
-    stage.classList.toggle('horizontal', !s.vertical);
-    $('#btnVertical').setAttribute('aria-pressed', String(s.vertical));
-    $('#btnHorizontal').setAttribute('aria-pressed', String(!s.vertical));
-    if (!s.dimWhileTyping) document.body.classList.remove('typing');
-  }
-
-  function renderChapterList() {
-    const ul = $('#chList');
-    ul.textContent = '';
-    state.chapters.forEach((ch, i) => {
-      const li = document.createElement('li');
-      li.className = 'ch-item' + (ch.id === state.currentId ? ' is-current' : '');
-      li.dataset.id = ch.id;
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'ch-open'; b.dataset.act = 'open';
-      const name = document.createElement('span'); name.className = 'ch-name'; name.textContent = ch.title || '無題の章';
-      const cnt = document.createElement('span'); cnt.className = 'ch-count'; cnt.textContent = fmt(chapterStats(ch).chars) + '字';
-      b.append(name, cnt);
-      li.append(b);
-      if (ch.id === state.currentId) {
-        const act = document.createElement('div'); act.className = 'ch-actions';
-        act.innerHTML = `<button type="button" class="tbtn" data-act="up" ${i === 0 ? 'disabled' : ''}>↑ 上へ</button>`
-          + `<button type="button" class="tbtn" data-act="down" ${i === state.chapters.length - 1 ? 'disabled' : ''}>↓ 下へ</button>`
-          + '<button type="button" class="tbtn" data-act="del">削除</button>';
-        li.append(act);
+  // Browsers leave stray markup (e.g. styled spans after merging paragraphs). Rebuild clean blocks,
+  // keeping the selection by dropping marker characters into the DOM before reading it back.
+  const MARK_A = '', MARK_B = '';
+  function textWithBreaks(node) {
+    let s = '';
+    const walk = (n) => {
+      for (const c of n.childNodes) {
+        if (c.nodeType === 3) s += c.data;
+        else if (c.nodeName === 'BR') s += '\n';
+        else if (c.nodeType === 1) { walk(c); if ((BLOCK_SET.has(c.tagName) || BLOCKISH.test(c.tagName)) && !s.endsWith('\n')) s += '\n'; }
       }
-      ul.append(li);
-    });
+    };
+    walk(node);
+    return s;
   }
-  function renderDrawer() { $('#workTitle').value = state.title; renderChapterList(); }
-
-  // Focus the textarea and move the caret so the browser scrolls it into view.
-  function placeCaret(s, e = s) {
-    ta.focus({ preventScroll: true });
-    ta.setSelectionRange(0, 0);
-    ta.setSelectionRange(s, e);
+  function blockIsClean(el) {
+    if (!BLOCK_SET.has(el.tagName) || el.childNodes.length !== 1) return false;
+    const c = el.firstChild;
+    if (c.nodeType === 3) return c.data.length > 0 && !c.data.includes('\n');
+    return c.nodeName === 'BR';
   }
-
-  function loadEditor(focus) {
-    const ch = cur();
-    state.currentId = ch.id;
-    ta.value = ch.body;
-    $('#chTitle').value = ch.title;
-    ta.scrollTop = 0; ta.scrollLeft = 0;
-    const saved = state.carets[ch.id];
-    const pos = Math.min(typeof saved === 'number' ? saved : ch.body.length, ch.body.length);
-    if (viewMode === 'preview') renderPreview();
-    else if (focus && !isTouch) placeCaret(pos);
-    else ta.setSelectionRange(pos, pos);
-  }
-
-  function renderPreview() {
-    const ch = cur();
-    const tcy = state.settings.vertical && state.settings.tcy;
-    preview.innerHTML = `<h2 class="pv-title">${esc(ch.title || '')}</h2>`
-      + ch.body.split('\n').map(l => l.trim() ? `<p>${lineToHtml(l, tcy)}</p>` : '<p><br></p>').join('');
-    preview.scrollTop = 0; preview.scrollLeft = 0;
-  }
-
-  let statsTimer = null;
-  function scheduleStats() { clearTimeout(statsTimer); statsTimer = setTimeout(renderStats, 150); }
-  function renderStats() {
-    const ch = cur();
-    const st = chapterStats(ch);
-    let total = 0, genko = 0;
-    for (const c of state.chapters) { const s = chapterStats(c); total += s.chars; genko += s.genko; }
-    const target = Number(state.settings.target) || 0;
-    const ratio = target ? Math.min(1, st.chars / target) : 0;
-    const done = !!target && st.chars >= target;
-    $('#cntChars').textContent = fmt(st.chars);
-    $('#cntGenko').textContent = st.genko.toFixed(1);
-    $('#goalLineFill').style.width = (ratio * 100) + '%';
-    $('#goalLine').classList.toggle('done', done);
-    $('#stChars').textContent = fmt(st.chars);
-    $('#stGenko').textContent = st.genko.toFixed(1);
-    $('#stTotal').textContent = fmt(total);
-    $('#stTotalGenko').textContent = genko.toFixed(1);
-    $('#stChapters').textContent = state.chapters.length;
-    $('#goalFill').style.width = (ratio * 100) + '%';
-    $('#goalBar').classList.toggle('done', done);
-    $('#goalText').textContent = !target ? '目標は設定されていません' : done ? '目標に達しました' : `あと ${fmt(target - st.chars)} 字（${Math.floor(st.chars / target * 100)}%）`;
-    $('#workChars').textContent = fmt(total);
-    $('#workGenko').textContent = genko.toFixed(1);
-    const item = document.querySelector(`.ch-item[data-id="${ch.id}"] .ch-count`);
-    if (item) item.textContent = fmt(st.chars) + '字';
-  }
-
-  function renderHint() { $('#sampleHint').hidden = !(state.pristine && !state.hintDismissed); }
-  function updateDocTitle() { document.title = (state.title ? state.title + ' | ' : '') + '原稿帳'; }
-
-  function renderAll(focus) {
-    applySettings();
-    renderDrawer();
-    loadEditor(focus);
-    renderStats();
-    renderHint();
-    updateDocTitle();
-    if (panel) renderPanel();
-  }
-
-  // ---------- save state ----------
-  const cloud = { mode: 'local', db: null, col: null, busy: false, again: false, timer: null, error: '', lastSaved: 0, oversize: new Set() };
-  let lastWarnShown = '';
-
-  function updateSaveState() {
-    let short, detail, cls = '';
-    if (cloud.mode === 'connecting') { short = '接続中…'; detail = '保存先に接続しています。このブラウザには保存済みです。'; cls = 'busy'; }
-    else if (cloud.mode === 'cloud') {
-      if (cloud.error) { short = '保存エラー'; detail = cloud.error; cls = 'warn'; }
-      else if (cloud.busy || state.pending.length || state.metaPending) { short = '保存中…'; detail = 'あなたのアカウントに保存しています。'; cls = 'busy'; }
-      else {
-        const t = cloud.lastSaved ? new Date(cloud.lastSaved).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
-        short = '保存済み';
-        detail = `claude.ai のあなたのアカウントに保存済み${t ? '（' + t + '）' : ''}。ほかの人には見えず、別の端末からも続きを書けます。`;
+  function normalizeDom() {
+    let bad = !editor.firstElementChild;
+    if (!bad) for (const c of editor.childNodes) if (c.nodeType !== 1 || !blockIsClean(c)) { bad = true; break; }
+    if (!bad) return false;
+    const sel = window.getSelection();
+    let marked = false, collapsed = true;
+    if (sel.rangeCount) {
+      const r = sel.getRangeAt(0);
+      if (editor.contains(r.startContainer) && editor.contains(r.endContainer)) {
+        collapsed = r.collapsed;
+        const rs = r.cloneRange(); rs.collapse(true);
+        if (!collapsed) { const re = r.cloneRange(); re.collapse(false); re.insertNode(document.createTextNode(MARK_B)); }
+        rs.insertNode(document.createTextNode(MARK_A));
+        marked = true;
       }
-    } else if (cloud.mode === 'readonly') { short = 'この端末のみ'; detail = '閲覧権限のため、このブラウザにだけ保存しています。'; cls = 'warn'; }
-    else if (!localOk) { short = '保存エラー'; detail = 'このブラウザに保存できません。メニューの「書き出し・読み込み」からバックアップしてください。'; cls = 'warn'; }
-    else { short = '保存済み'; detail = 'このブラウザに自動保存しています。ブラウザのデータを消すと失われるため、ときどきメニューの「書き出し・読み込み」からバックアップしてください。'; }
-    const el = $('#saveState');
-    el.className = 'save' + (cls ? ' ' + cls : '');
-    $('#saveText').textContent = short;
-    $('#saveDetail').textContent = detail;
-    $('#btnStats').title = '文字数・目標 ／ ' + detail;
-    if (cls === 'warn') { if (detail !== lastWarnShown) { lastWarnShown = detail; toast(detail); } }
-    else lastWarnShown = '';
-  }
-
-  function scheduleSync() {
-    if (cloud.mode !== 'cloud') return;
-    clearTimeout(cloud.timer);
-    cloud.timer = setTimeout(flush, 1200);
-    updateSaveState();
-  }
-
-  async function withRetry(fn) {
-    try { return await fn(); } catch (e) {
-      if (e && e.code === 'unavailable') { await new Promise(r => setTimeout(r, 400 + Math.random() * 600)); return fn(); }
-      throw e;
     }
+    const out = [];
+    let inline = null;
+    const flushInline = () => { if (inline !== null) { inline.split('\n').forEach(t => out.push({ level: 0, text: t })); inline = null; } };
+    for (const c of Array.from(editor.childNodes)) {
+      if (c.nodeType === 1 && (BLOCK_SET.has(c.tagName) || BLOCKISH.test(c.tagName))) {
+        flushInline();
+        let t = textWithBreaks(c);
+        if (t.endsWith('\n')) t = t.slice(0, -1);
+        const level = BLOCK_SET.has(c.tagName) ? levelOf(c) : 0;
+        t.split('\n').forEach(line => out.push({ level, text: line }));
+      } else if (c.nodeType === 3) inline = (inline ?? '') + c.data;
+      else if (c.nodeType === 1) inline = (inline ?? '') + (c.nodeName === 'BR' ? '\n' : textWithBreaks(c));
+    }
+    flushInline();
+    if (!out.length) out.push({ level: 0, text: '' });
+    let a = -1, b = -1, off = 0;
+    for (const blk of out) {
+      let t = blk.text;
+      const ia = t.indexOf(MARK_A);
+      if (ia >= 0) { a = off + ia; t = t.slice(0, ia) + t.slice(ia + 1); }
+      const ib = t.indexOf(MARK_B);
+      if (ib >= 0) { b = off + ib; t = t.slice(0, ib) + t.slice(ib + 1); }
+      blk.text = t.replace(/ /g, ' ');
+      off += blk.text.length + 1;
+    }
+    blocks = out;
+    renderEditor();
+    if (marked && a >= 0) setSel(a, collapsed || b < 0 ? a : b, { scroll: false });
+    return true;
   }
 
-  async function flush() {
-    if (cloud.mode !== 'cloud') return;
-    if (cloud.busy) { cloud.again = true; return; }
-    clearTimeout(cloud.timer);
-    cloud.busy = true; cloud.error = '';
-    updateSaveState();
-    let current = null, metaInFlight = false;
-    try {
-      while (state.pending.length) {
-        current = state.pending.shift();
-        const ch = state.chapters.find(c => c.id === current);
-        const ref = cloud.col.doc('ch_' + current);
-        if (ch) {
-          if (byteLen(ch.body) + byteLen(ch.title) > 250000) { cloud.oversize.add(ch.id); current = null; continue; }
-          cloud.oversize.delete(ch.id);
-          const body = { title: ch.title, body: ch.body, updatedAt: ch.updatedAt };
-          await withRetry(() => ref.set(body));
-        } else {
-          await withRetry(() => ref.delete());
-        }
-        current = null;
-      }
-      if (state.metaPending) {
-        state.metaPending = false; metaInFlight = true;
-        const meta = { title: state.title, order: state.chapters.map(c => c.id), settings: Object.assign({}, state.settings), updatedAt: state.metaUpdatedAt || Date.now() };
-        await withRetry(() => cloud.col.doc('meta').set(meta));
-        metaInFlight = false;
-      }
-      cloud.lastSaved = Date.now();
-      if (cloud.oversize.size) {
-        const names = state.chapters.filter(c => cloud.oversize.has(c.id)).map(c => '「' + (c.title || '無題') + '」');
-        if (names.length) cloud.error = names.join('') + 'は長すぎてアカウントに保存できません（このブラウザには保存済み）。章を分けてください。';
-      }
-    } catch (e) {
-      if (current && !state.pending.includes(current)) state.pending.unshift(current);
-      if (metaInFlight) state.metaPending = true;
-      const code = e && e.code;
-      if (code === 'invalid_argument') { cloud.mode = 'readonly'; }
-      else if (code === 'revoked' || code === 'not_granted' || code === 'capability_disabled' || code === 'capability_removed') { cloud.mode = 'local'; }
-      else if (code === 'quota_exceeded') { cloud.error = '保存容量の上限に達しました。「書き出し・読み込み」でバックアップし、不要な章を削除してください。'; }
-      else { cloud.error = 'アカウントへの保存に失敗しました。少ししてから自動で再試行します（このブラウザには保存済み）。'; setTimeout(scheduleSync, 10000); }
-    } finally {
-      cloud.busy = false;
-      saveLocalSoon();
-      updateSaveState();
-      if (cloud.again) { cloud.again = false; scheduleSync(); }
+  // ---------- selection ----------
+  let lastSel = { start: 0, end: 0 };
+  function offsetOf(node, off) {
+    if (node === editor) return off >= blocks.length ? plainLength() : starts[off];
+    let el = node;
+    while (el && el.parentNode !== editor) el = el.parentNode;
+    if (!el) return 0;
+    const i = Array.prototype.indexOf.call(editor.children, el);
+    if (i < 0 || i >= blocks.length) return plainLength();
+    const r = document.createRange();
+    r.setStart(el, 0);
+    try { r.setEnd(node, off); } catch { return starts[i]; }
+    return starts[i] + Math.min(r.toString().length, blocks[i].text.length);
+  }
+  function getSel() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    const r = sel.getRangeAt(0);
+    if (!editor.contains(r.startContainer) || !editor.contains(r.endContainer)) return null;
+    const a = offsetOf(r.startContainer, r.startOffset), b = offsetOf(r.endContainer, r.endOffset);
+    return a <= b ? { start: a, end: b } : { start: b, end: a };
+  }
+  function pointAt(off) {
+    const { i, k } = locate(off);
+    const el = editor.children[i];
+    if (!el) return [editor, editor.childNodes.length];
+    const t = el.firstChild;
+    if (t && t.nodeType === 3) return [t, Math.min(k, t.length)];
+    return [el, 0];
+  }
+  function rangeAt(a, b) {
+    const r = document.createRange();
+    r.setStart(...pointAt(a));
+    r.setEnd(...pointAt(b));
+    return r;
+  }
+  function setSel(a, b = a, { focus = true, scroll = true } = {}) {
+    const len = plainLength();
+    a = Math.max(0, Math.min(a, len));
+    b = Math.max(a, Math.min(b, len));
+    if (focus && document.activeElement !== editor) editor.focus({ preventScroll: true });
+    const r = rangeAt(a, b);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    lastSel = { start: a, end: b };
+    state.caret = a;
+    if (scroll) scrollToRange(r);
+  }
+  function scrollRectIntoView(box, rect, margin = 48) {
+    const ed = box.getBoundingClientRect();
+    if (rect.left < ed.left + margin) box.scrollLeft -= ed.left + margin - rect.left;
+    else if (rect.right > ed.right - margin) box.scrollLeft += rect.right - (ed.right - margin);
+    if (rect.top < ed.top + margin) box.scrollTop -= ed.top + margin - rect.top;
+    else if (rect.bottom > ed.bottom - margin) box.scrollTop += rect.bottom - (ed.bottom - margin);
+  }
+  function scrollToRange(r) {
+    let rect = r.getBoundingClientRect();
+    if (!rect.width && !rect.height) {
+      const el = locate(offsetOf(r.startContainer, r.startOffset)).i;
+      const blockEl = editor.children[el];
+      if (!blockEl) return;
+      rect = blockEl.getBoundingClientRect();
     }
+    scrollRectIntoView(editor, rect);
+  }
+  function scrollToStart(box, el) {
+    const ed = box.getBoundingClientRect(), r = el.getBoundingClientRect();
+    if (state.settings.vertical) box.scrollLeft += r.right - (ed.right - 32);
+    else box.scrollTop += r.top - (ed.top + 24);
   }
 
-  function mergeCloud(docs) {
-    const meta = docs.meta;
-    const cloudCh = {};
-    for (const k of Object.keys(docs)) if (k.startsWith('ch_')) cloudCh[k.slice(3)] = docs[k];
-    if (!meta) {
-      if (state.pristine) { state.pending = []; state.metaPending = false; }
-      else { state.pending = state.chapters.map(c => c.id); state.metaPending = true; }
-      return;
-    }
-    const localById = Object.fromEntries(state.chapters.map(c => [c.id, c]));
-    const useCloudMeta = state.pristine || (meta.updatedAt || 0) >= (state.metaUpdatedAt || 0);
-    let order;
-    if (useCloudMeta) {
-      order = Array.isArray(meta.order) ? meta.order.map(String) : [];
-      if (typeof meta.title === 'string') state.title = meta.title;
-      state.settings = Object.assign(defaultSettings(), meta.settings || {});
-      state.metaUpdatedAt = meta.updatedAt || 0;
-      state.metaPending = false;
+  // ---------- undo history (stored as diffs of the markdown) ----------
+  const hist = { undo: [], redo: [], lastMd: '', lastTime: 0 };
+  function diffStr(a, b) {
+    let s = 0;
+    const min = Math.min(a.length, b.length);
+    while (s < min && a.charCodeAt(s) === b.charCodeAt(s)) s++;
+    let ea = a.length, eb = b.length;
+    while (ea > s && eb > s && a.charCodeAt(ea - 1) === b.charCodeAt(eb - 1)) { ea--; eb--; }
+    return { start: s, del: a.slice(s, ea), ins: b.slice(s, eb) };
+  }
+  function adjacent(p, d) {
+    if (!p) return false;
+    if (!p.del && !d.del) return d.start === p.start + p.ins.length;
+    if (!p.ins && !d.ins) return d.start + d.del.length === p.start || d.start === p.start;
+    return false;
+  }
+  function commit(kind, before) {
+    const md = toMd(blocks);
+    if (md === hist.lastMd) return false;
+    const d = diffStr(hist.lastMd, md);
+    const now = Date.now();
+    const after = getSel() || lastSel;
+    const top = hist.undo[hist.undo.length - 1];
+    if ((kind === 'typing' || kind === 'delete') && top && top.kind === kind && now - hist.lastTime < 1500 && top.steps.length < 300 && adjacent(top.steps[top.steps.length - 1], d)) {
+      top.steps.push(d);
+      top.after = after;
     } else {
-      order = state.chapters.map(c => c.id);
-      state.metaPending = true;
+      hist.undo.push({ kind, steps: [d], before: before || lastSel, after });
+      if (hist.undo.length > 300) hist.undo.shift();
     }
-    const pending = new Set(state.pristine ? [] : state.pending);
-    const chapters = [];
-    for (const id of order) {
-      const l = state.pristine ? null : localById[id];
-      const c = cloudCh[id];
-      if (l && (!c || (l.updatedAt || 0) > (c.updatedAt || 0))) { chapters.push(l); pending.add(id); }
-      else if (c) { chapters.push({ id, title: String(c.title ?? ''), body: String(c.body ?? ''), updatedAt: c.updatedAt || 0 }); pending.delete(id); }
-    }
-    if (useCloudMeta && !state.pristine) {
-      for (const l of state.chapters) {
-        if (!order.includes(l.id) && state.pending.includes(l.id) && (l.updatedAt || 0) > (meta.updatedAt || 0)) {
-          chapters.push(l); pending.add(l.id); state.metaPending = true;
-        }
-      }
-    }
-    if (!chapters.length) return;
-    state.chapters = chapters;
-    state.pending = [...pending];
-    state.pristine = false;
-    if (!chapters.some(c => c.id === state.currentId)) state.currentId = chapters[0].id;
+    hist.redo.length = 0;
+    hist.lastMd = md;
+    hist.lastTime = now;
+    state.md = md;
+    touch();
+    return true;
+  }
+  function restore(md, sel) {
+    blocks = fromMd(md);
+    renderEditor();
+    hist.lastMd = toMd(blocks);
+    hist.lastTime = 0;
+    state.md = hist.lastMd;
+    indentEl = null;
+    touch();
+    if (viewMode !== 'edit') setView('edit');
+    const s = sel || lastSel;
+    setSel(s.start, s.end);
+    contentChanged();
+  }
+  function undo() {
+    const g = hist.undo.pop();
+    if (!g) return;
+    let md = hist.lastMd;
+    for (let j = g.steps.length - 1; j >= 0; j--) { const d = g.steps[j]; md = md.slice(0, d.start) + d.del + md.slice(d.start + d.ins.length); }
+    hist.redo.push(g);
+    restore(md, g.before);
+  }
+  function redo() {
+    const g = hist.redo.pop();
+    if (!g) return;
+    let md = hist.lastMd;
+    for (const d of g.steps) md = md.slice(0, d.start) + d.ins + md.slice(d.start + d.del.length);
+    hist.undo.push(g);
+    restore(md, g.after);
   }
 
-  async function initCloud() {
-    const c = window.claude;
-    if (!c || typeof c.use !== 'function') { cloud.mode = 'local'; updateSaveState(); return; }
-    cloud.mode = 'connecting'; updateSaveState();
-    try {
-      const [db, user] = await Promise.all([c.use('db'), c.use('user')]);
-      const uid = user ? await user.id() : null;
-      if (!db || !uid) { cloud.mode = 'local'; updateSaveState(); return; }
-      const col = db.collection('data/users/' + uid);
-      const snap = await withRetry(() => col.get());
-      const docs = {};
-      for (const d of snap.docs) if (d.exists) docs[d.id] = d.data();
-      cloud.db = db; cloud.col = col; cloud.mode = 'cloud';
-      const focused = document.activeElement === ta;
-      const caret = ta.selectionStart;
-      const before = cur().body;
-      mergeCloud(docs);
-      saveLocalNow();
-      const same = cur().body === before;
-      renderAll(false);
-      if (focused && same) placeCaret(caret);
-      if (state.pending.length || state.metaPending) scheduleSync();
-      updateSaveState();
-    } catch (e) {
-      cloud.mode = 'local'; updateSaveState();
-    }
+  function touch() {
+    state.updatedAt = Date.now();
+    state.dirty = true;
+    state.pristine = false;
+    saveLocalSoon();
+    scheduleSync();
+    renderHint();
   }
 
   // ---------- editing ----------
   let composing = false;
-  let indentPos = -1;
+  let indentEl = null;
   let findArmed = false;
 
-  function insertText(text) {
-    ta.focus({ preventScroll: true });
-    let ok = false;
-    try { ok = document.execCommand('insertText', false, text); } catch { ok = false; }
-    if (!ok) {
-      ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, 'end');
-      ta.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  }
-
-  function fixIndentBeforeBracket() {
-    if (indentPos < 0 || composing) return;
-    const v = ta.value, p = indentPos;
-    if (v[p] !== '　' || v[p - 1] !== '\n') { indentPos = -1; return; }
-    const next = v[p + 1];
-    if (next === undefined || next === '\n') return;
-    indentPos = -1;
-    if (OPEN_BRACKETS.includes(next)) {
-      const caret = ta.selectionStart;
-      ta.setSelectionRange(p, p + 1);
-      let ok = false;
-      try { ok = document.execCommand('delete'); } catch { ok = false; }
-      if (!ok) { ta.setRangeText('', p, p + 1); ta.dispatchEvent(new Event('input', { bubbles: true })); }
-      ta.setSelectionRange(caret - 1, caret - 1);
-    }
-  }
-
-  let checkTimer = null, findTimer = null;
-  ta.addEventListener('input', (e) => {
-    const ch = cur();
-    ch.body = ta.value;
-    touchChapter(ch);
-    renderHint();
+  function contentChanged() {
     scheduleStats();
-    if (state.settings.dimWhileTyping && !isTouch) document.body.classList.add('typing');
-    if (!e.isComposing) fixIndentBeforeBracket();
-    if (panel === 'check') { clearTimeout(checkTimer); checkTimer = setTimeout(renderCheck, 600); }
-    if (!findbar.hidden) { clearTimeout(findTimer); findTimer = setTimeout(updateFind, 300); }
-  });
-  ta.addEventListener('compositionstart', () => { composing = true; });
-  ta.addEventListener('compositionend', () => { composing = false; setTimeout(fixIndentBeforeBracket, 0); });
-  ta.addEventListener('pointerdown', () => { findArmed = false; });
-  ta.addEventListener('blur', () => { document.body.classList.remove('typing'); });
+    scheduleCaretUi();
+    if (!findbar.hidden) scheduleFind();
+    if (panel === 'check') scheduleCheck();
+    if (state.settings.dimWhileTyping && !isTouch && document.activeElement === editor) document.body.classList.add('typing');
+  }
 
-  ta.addEventListener('keydown', (e) => {
-    if (findArmed && e.key === 'Enter' && !e.isComposing && !findbar.hidden) {
-      const q = $('#findQ').value;
-      if (q && ta.value.slice(ta.selectionStart, ta.selectionEnd) === q) { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); return; }
+  // Replace [start, end) with text; "\n" splits paragraphs. With markdown, lines like "# 見出し" become
+  // headings, and a heading never merges into the paragraph around the caret.
+  function applyEdit(start, end, text, { markdown = false, caret = null, kind = 'insert', before = null, focus = true, select = true } = {}) {
+    const sel0 = before || getSel() || lastSel;
+    const a = locate(start), z = locate(end);
+    const first = blocks[a.i], last = blocks[z.i];
+    const head = first.text.slice(0, a.k), tail = last.text.slice(z.k);
+    const lines = text.split('\n');
+    const parsed = lines.map(l => (markdown ? parseLine(l) : { level: 0, text: l }));
+    const nb = [];
+    let ci, ck;
+    if (lines.length === 1) {
+      const p = parsed[0];
+      if (!head && !tail) nb.push({ level: p.level || first.level, text: p.text });
+      else nb.push({ level: first.level, text: head + (p.level ? lines[0] : p.text) + tail });
+      ci = 0;
+      ck = nb[0].text.length - tail.length;
+    } else {
+      const p0 = parsed[0], pl = parsed[parsed.length - 1];
+      if (head && p0.level) nb.push({ level: first.level, text: head }, p0);
+      else nb.push(head ? { level: first.level, text: head + p0.text } : p0);
+      for (let j = 1; j < parsed.length - 1; j++) nb.push(parsed[j]);
+      if (!tail) nb.push(pl);
+      else if (!head || pl.level) nb.push(pl, { level: last.level, text: tail });
+      else nb.push({ level: last.level, text: pl.text + tail });
+      ci = tail && (!head || pl.level) ? nb.length - 2 : nb.length - 1;
+      ck = nb[ci].text.length - (ci === nb.length - 1 ? tail.length : 0);
     }
-    if (e.key !== 'Shift') findArmed = false;
-    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || composing) return;
-    if (!state.settings.autoIndent || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
-    const v = ta.value, s = ta.selectionStart, end = ta.selectionEnd;
-    const nl = v.indexOf('\n', end);
-    const after = v.slice(end, nl === -1 ? v.length : nl);
-    const lineStart = v.lastIndexOf('\n', s - 1) + 1;
-    const before = v.slice(lineStart, s);
-    e.preventDefault();
-    if (/^[　 ]/.test(after) || (after && OPEN_BRACKETS.includes(after[0]))) { insertText('\n'); indentPos = -1; return; }
-    if (before === '　' && !after && s === end) {
-      ta.setSelectionRange(s - 1, s);
-      insertText('\n　');
-      indentPos = s;
+    patchBlocks(a.i, z.i - a.i + 1, nb);
+    const pos = caret != null ? caret : starts[a.i + ci] + ck;
+    indentEl = null;
+    if (select) setSel(pos, pos, { focus });
+    else { lastSel = { start: pos, end: pos }; scrollToRange(rangeAt(pos, pos)); }
+    commit(kind, sel0);
+    contentChanged();
+  }
+
+  function handleEnter(lineBreak) {
+    const s = getSel();
+    if (!s) return;
+    if (s.end > s.start) applyEdit(s.start, s.end, '', { kind: 'delete', before: s });
+    const { i, k } = locate(s.start);
+    const b = blocks[i];
+    const head = b.text.slice(0, k), tail = b.text.slice(k);
+    let topLevel = b.level, botLevel = b.level;
+    if (b.level > 0) { if (!tail) botLevel = 0; else if (!head) topLevel = 0; }
+    let top = head, bot = tail, ck = 0;
+    if (botLevel === 0 && !lineBreak && state.settings.autoIndent) {
+      if (b.level === 0 && head === '　' && !tail) top = '';
+      if (!/^[　 ]/.test(tail) && !(tail && OPEN_BRACKETS.includes(tail[0]))) { bot = '　' + tail; ck = 1; }
+    }
+    patchBlocks(i, 1, [{ level: topLevel, text: top }, { level: botLevel, text: bot }]);
+    indentEl = ck ? editor.children[i + 1] : null;
+    setSel(starts[i + 1] + ck);
+    commit('enter', s);
+    contentChanged();
+  }
+
+  function setLevel(level) {
+    if (viewMode !== 'edit') setView('edit');
+    const s = getSel() || lastSel;
+    const a = locate(s.start), z = locate(s.end);
+    const nb = [], shift = [];
+    let changed = false;
+    for (let i = a.i; i <= z.i; i++) {
+      const b = blocks[i];
+      let t = b.text, d = 0;
+      if (level > 0 && b.level === 0) { const m = /^[　 ]+/.exec(t); if (m) { t = t.slice(m[0].length); d = -m[0].length; } }
+      else if (level === 0 && b.level > 0 && state.settings.autoIndent && t && !/^[　 ]/.test(t) && !OPEN_BRACKETS.includes(t[0])) { t = '　' + t; d = 1; }
+      if (t !== b.text || level !== b.level) changed = true;
+      nb.push({ level, text: t });
+      shift.push(d);
+    }
+    if (!changed) { closePop(); return; }
+    patchBlocks(a.i, z.i - a.i + 1, nb);
+    const mapK = (p, d) => (d < 0 ? Math.max(0, p.k + d) : p.k + d);
+    setSel(starts[a.i] + mapK(a, shift[0]), starts[z.i] + mapK(z, shift[shift.length - 1]), { scroll: false });
+    indentEl = null;
+    commit('format', s);
+    contentChanged();
+    updateCaretUi();
+  }
+
+  function fixBracketIndent() {
+    if (!indentEl) return;
+    if (!indentEl.isConnected) { indentEl = null; return; }
+    const i = Array.prototype.indexOf.call(editor.children, indentEl);
+    const t = blocks[i] ? blocks[i].text : '';
+    if (t === '　') return;
+    indentEl = null;
+    if (blocks[i] && blocks[i].level === 0 && t[0] === '　' && t.length >= 2 && OPEN_BRACKETS.includes(t[1])) {
+      const s = getSel();
+      patchBlocks(i, 1, [{ level: 0, text: t.slice(1) }]);
+      if (s) setSel(Math.max(starts[i], s.start - 1), Math.max(starts[i], s.end - 1), { scroll: false });
+    }
+  }
+  function headingShortcut() {
+    const s = getSel();
+    if (!s || s.start !== s.end) return false;
+    const { i, k } = locate(s.start);
+    const b = blocks[i];
+    if (b.level) return false;
+    const m = /^[　 ]?(#{1,3}) /.exec(b.text);
+    if (!m || k !== m[0].length) return false;
+    patchBlocks(i, 1, [{ level: m[1].length, text: b.text.slice(m[0].length) }]);
+    setSel(starts[i], starts[i], { scroll: false });
+    indentEl = null;
+    return true;
+  }
+  function afterUserInput(inputType, data) {
+    const before = lastSel;
+    if (!normalizeDom()) syncFromDom();
+    if (blocks.length === 1 && !blocks[0].text && blocks[0].level) {
+      // Everything was deleted: start again from a body paragraph, not a leftover heading.
+      patchBlocks(0, 1, [{ level: 0, text: '' }]);
+      setSel(0, 0, { scroll: false });
+    }
+    let kind = /^delete/.test(inputType || '') ? 'delete' : 'typing';
+    fixBracketIndent();
+    if (inputType === 'insertText' && data === ' ' && headingShortcut()) kind = 'format';
+    commit(kind, before);
+    contentChanged();
+  }
+
+  editor.addEventListener('input', (e) => {
+    if (e.isComposing || composing) return;
+    afterUserInput(e.inputType, e.data);
+  });
+  editor.addEventListener('compositionstart', () => { composing = true; });
+  editor.addEventListener('compositionend', () => {
+    composing = false;
+    setTimeout(() => afterUserInput('insertCompositionText', null), 0);
+  });
+  editor.addEventListener('beforeinput', (e) => {
+    const t = e.inputType;
+    if (t === 'historyUndo') { e.preventDefault(); undo(); return; }
+    if (t === 'historyRedo') { e.preventDefault(); redo(); return; }
+    if (t === 'insertParagraph' || t === 'insertLineBreak') {
+      if (e.isComposing || composing) return;
+      e.preventDefault();
+      if (!HL && findArmed && !findbar.hidden) {
+        const s = getSel();
+        if (s && find.q && plainText().slice(s.start, s.end) === find.q) { findStep(t === 'insertLineBreak' ? -1 : 1); return; }
+      }
+      findArmed = false;
+      handleEnter(t === 'insertLineBreak');
       return;
     }
-    insertText('\n　');
-    indentPos = s + 1;
+    if (t.startsWith('format') || t === 'insertLink' || t === 'insertFromDrop' || t === 'deleteByDrag' || t === 'insertOrderedList' || t === 'insertUnorderedList' || t === 'insertHorizontalRule') e.preventDefault();
+  });
+  editor.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229) return;
+    const mod = e.ctrlKey || e.metaKey;
+    const k = e.key.toLowerCase();
+    if (mod && !e.altKey && k === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
+    else if (mod && !e.altKey && k === 'y') { e.preventDefault(); redo(); }
+    else if (mod && !e.altKey && (k === 'b' || k === 'i' || k === 'u')) e.preventDefault();
+    else if (mod && e.altKey && /^Digit[0-3]$/.test(e.code)) { e.preventDefault(); setLevel(Number(e.code.slice(5))); }
+    else if (e.key !== 'Shift' && e.key !== 'Enter') findArmed = false;
+  });
+  editor.addEventListener('pointerdown', () => { findArmed = false; });
+  editor.addEventListener('blur', () => { document.body.classList.remove('typing'); });
+  editor.addEventListener('dragstart', (e) => e.preventDefault());
+  editor.addEventListener('drop', (e) => e.preventDefault());
+
+  // Copy and paste keep heading levels inside the editor, and give plain lines to other apps.
+  function selectionParts(s) {
+    const a = locate(s.start), z = locate(s.end);
+    const parts = [];
+    for (let i = a.i; i <= z.i; i++) {
+      const t = blocks[i].text;
+      parts.push({ level: blocks[i].level, text: t.slice(i === a.i ? a.k : 0, i === z.i ? z.k : t.length) });
+    }
+    return parts;
+  }
+  function writeClipboard(e, s) {
+    const parts = selectionParts(s);
+    e.clipboardData.setData('text/plain', parts.map(p => p.text).join('\n'));
+    e.clipboardData.setData('text/html', '<div data-genkocho="1">' + parts.map(p => { const tag = LEVEL_TAGS[p.level].toLowerCase(); return `<${tag}>${esc(p.text)}</${tag}>`; }).join('') + '</div>');
+  }
+  editor.addEventListener('copy', (e) => {
+    const s = getSel();
+    if (!s || s.start === s.end) return;
+    e.preventDefault();
+    writeClipboard(e, s);
+  });
+  editor.addEventListener('cut', (e) => {
+    const s = getSel();
+    if (!s || s.start === s.end) return;
+    e.preventDefault();
+    writeClipboard(e, s);
+    applyEdit(s.start, s.end, '', { kind: 'cut', before: s });
+  });
+  editor.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const s = getSel() || lastSel;
+    const html = e.clipboardData.getData('text/html');
+    let text = null;
+    if (html && html.includes('data-genkocho')) {
+      const root = new DOMParser().parseFromString(html, 'text/html').querySelector('[data-genkocho]');
+      if (root) text = Array.from(root.children, el => lineOf({ level: Math.max(0, LEVEL_TAGS.indexOf(el.tagName)), text: el.textContent })).join('\n');
+    }
+    if (text === null) text = (e.clipboardData.getData('text/plain') || '').replace(/\r\n?/g, '\n');
+    if (!text) return;
+    applyEdit(s.start, s.end, text, { markdown: true, kind: 'paste', before: s });
   });
 
   // In vertical writing the text scrolls sideways; let the mouse wheel do that.
@@ -958,69 +1136,449 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     el.scrollLeft -= e.deltaY * unit;
     e.preventDefault();
   }
-  ta.addEventListener('wheel', verticalWheel, { passive: false });
+  editor.addEventListener('wheel', verticalWheel, { passive: false });
   preview.addEventListener('wheel', verticalWheel, { passive: false });
-
   document.addEventListener('mousemove', (e) => {
     if (document.body.classList.contains('typing') && Math.abs(e.movementX) + Math.abs(e.movementY) > 6) document.body.classList.remove('typing');
   });
 
-  function insertAt(text, back) {
-    const s = ta.selectionStart;
-    insertText(text);
-    const p = s + text.length - back;
-    ta.setSelectionRange(p, p);
-  }
   function ins(kind) {
     if (viewMode !== 'edit') setView('edit');
-    const s = ta.selectionStart, e = ta.selectionEnd;
-    const sel = ta.value.slice(s, e);
+    const s = getSel() || lastSel;
+    const sel = plainText().slice(s.start, s.end);
+    if ((kind === 'ruby' || kind === 'bouten') && sel.includes('\n')) { toast(kind === 'ruby' ? 'ルビは1行の中の文字に振ってください' : '傍点は1行の中の文字に付けてください'); return; }
     switch (kind) {
       case 'ruby':
-        if (sel.includes('\n')) { toast('ルビは1行の中の文字に振ってください'); return; }
-        if (sel) insertAt('｜' + sel + '《》', 1);
-        else if (/[\p{Script=Han}々〆ヵヶ]$/u.test(ta.value.slice(Math.max(0, s - 2), s))) insertAt('《》', 1);
-        else { toast('ルビを振る文字を選んでから押してください（漢字の直後なら、そのまま押せます）'); ta.focus(); }
+        if (sel) applyEdit(s.start, s.end, '｜' + sel + '《》', { caret: s.start + sel.length + 2, before: s });
+        else if (/[\p{Script=Han}々〆ヵヶ]$/u.test(plainText().slice(Math.max(0, s.start - 2), s.start))) applyEdit(s.start, s.start, '《》', { caret: s.start + 1, before: s });
+        else { toast('ルビを振る文字を選んでから押してください（漢字の直後なら、そのまま押せます）'); setSel(s.start, s.end, { scroll: false }); }
         break;
-      case 'bouten':
-        if (sel.includes('\n')) { toast('傍点は1行の中の文字に付けてください'); return; }
-        insertAt('《《' + sel + '》》', sel ? 0 : 2);
-        break;
-      case 'dash': insertAt('――', 0); break;
-      case 'leader': insertAt('……', 0); break;
+      case 'bouten': applyEdit(s.start, s.end, '《《' + sel + '》》', { caret: sel ? s.start + sel.length + 4 : s.start + 2, before: s }); break;
+      case 'dash': applyEdit(s.start, s.end, '――', { before: s }); break;
+      case 'leader': applyEdit(s.start, s.end, '……', { before: s }); break;
     }
   }
-  const tools = $('#barTools');
-  const keepFocus = (e) => { if (e.target.closest('[data-ins]')) e.preventDefault(); };
-  tools.addEventListener('pointerdown', keepFocus);
-  tools.addEventListener('mousedown', keepFocus);
-  tools.addEventListener('click', (e) => { const b = e.target.closest('[data-ins]'); if (b && !b.disabled) ins(b.dataset.ins); });
+  const keepFocus = (e) => { if (e.target.closest('[data-ins], #btnLevel, #levelPop button')) e.preventDefault(); };
+  for (const el of [$('#barTools'), $('#levelPop')]) {
+    el.addEventListener('pointerdown', keepFocus);
+    el.addEventListener('mousedown', keepFocus);
+  }
+  $('#barTools').addEventListener('click', (e) => { const b = e.target.closest('[data-ins]'); if (b && !b.disabled) ins(b.dataset.ins); });
 
   document.addEventListener('selectionchange', () => {
-    if (document.activeElement !== ta) { $('#cntSel').hidden = true; return; }
-    state.carets[state.currentId] = ta.selectionStart;
-    const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
-    $('#cntSel').hidden = !sel;
-    if (sel) $('#cntSelN').textContent = fmt(countChars(sel));
+    if (composing) return;
+    const s = getSel();
+    if (!s) { if (document.activeElement !== editor) $('#cntSel').hidden = true; return; }
+    lastSel = s;
+    state.caret = s.start;
+    scheduleCaretUi();
   });
 
-  $('#chTitle').addEventListener('input', (e) => {
-    const ch = cur();
-    ch.title = e.target.value;
-    touchChapter(ch);
-    const name = document.querySelector(`.ch-item[data-id="${ch.id}"] .ch-name`);
-    if (name) name.textContent = ch.title || '無題の章';
+  // ---------- caret-dependent UI: paragraph type, breadcrumb, selection count ----------
+  let caretUiQueued = false, lastHead = -2, lastCrumbKey = '';
+  function scheduleCaretUi() {
+    if (caretUiQueued) return;
+    caretUiQueued = true;
+    requestAnimationFrame(() => { caretUiQueued = false; updateCaretUi(); });
+  }
+  function nearestHeading(ci) { for (let i = Math.min(ci, blocks.length - 1); i >= 0; i--) if (blocks[i].level) return i; return -1; }
+  function headingPath(ci) {
+    const path = [];
+    let min = 4;
+    for (let i = Math.min(ci, blocks.length - 1); i >= 0 && min > 1; i--) {
+      const L = blocks[i].level;
+      if (L && L < min) { path.unshift(i); min = L; }
+    }
+    return path;
+  }
+  function updateCaretUi() {
+    const ci = locate(lastSel.start).i;
+    const lvl = blocks[ci] ? blocks[ci].level : 0;
+    $('#levelLabel').textContent = LEVEL_NAMES[lvl];
+    for (const b of document.querySelectorAll('#levelPop [data-level]')) b.setAttribute('aria-checked', String(Number(b.dataset.level) === lvl));
+    const path = headingPath(ci);
+    const key = path.map(i => i + ':' + blocks[i].text).join('|') + '#' + state.title;
+    if (key !== lastCrumbKey) {
+      lastCrumbKey = key;
+      const crumb = $('#crumb');
+      crumb.textContent = '';
+      if (!path.length) {
+        const s = document.createElement('span');
+        s.className = 'crumb-title';
+        s.textContent = state.title || '無題の作品';
+        crumb.append(s);
+      }
+      path.forEach((i, j) => {
+        if (j) { const sp = document.createElement('span'); sp.className = 'crumb-sep'; sp.textContent = '›'; crumb.append(sp); }
+        const s = document.createElement('span');
+        s.className = 'crumb-part';
+        s.textContent = blocks[i].text || '（無題の見出し）';
+        crumb.append(s);
+      });
+    }
+    const showSel = viewMode === 'edit' && lastSel.end > lastSel.start && document.activeElement === editor;
+    $('#cntSel').hidden = !showSel;
+    if (showSel) $('#cntSelN').textContent = fmt(countChars(plainText().slice(lastSel.start, lastSel.end)));
+    const h = nearestHeading(ci);
+    if (h !== lastHead) { lastHead = h; scheduleStats(); }
+  }
+
+  // ---------- counts and outline ----------
+  const metricCache = new Map();
+  const HEAD_METRIC = { chars: 0, rows: 0 };
+  function blockMetric(b) {
+    if (b.level) return HEAD_METRIC;
+    let m = metricCache.get(b.text);
+    if (!m) {
+      const s = stripMarkup(b.text);
+      m = { chars: cpLen(s.replace(/[\s　]/g, '')), rows: Math.max(1, Math.ceil(cpLen(s) / 20)) };
+      if (metricCache.size > 20000) metricCache.clear();
+      metricCache.set(b.text, m);
+    }
+    return m;
+  }
+  let analysis = null;
+  function analyze() {
+    const n = blocks.length;
+    const pc = new Array(n + 1), pr = new Array(n + 1);
+    pc[0] = 0; pr[0] = 0;
+    for (let i = 0; i < n; i++) { const m = blockMetric(blocks[i]); pc[i + 1] = pc[i] + m.chars; pr[i + 1] = pr[i] + m.rows; }
+    const heads = [];
+    for (let i = 0; i < n; i++) if (blocks[i].level) heads.push(i);
+    const sections = heads.map((h, idx) => {
+      const L = blocks[h].level;
+      let end = n;
+      for (let j = idx + 1; j < heads.length; j++) if (blocks[heads[j]].level <= L) { end = heads[j]; break; }
+      return { i: h, level: L, end, chars: pc[end] - pc[h + 1], rows: pr[end] - pr[h + 1] };
+    });
+    return { pc, pr, heads, sections, total: pc[n], rows: pr[n] };
+  }
+  const sheets = (chars, rows) => (chars ? rows / 20 : 0);
+  function sectionAt(a, ci) {
+    let h = -1;
+    for (const x of a.heads) { if (x <= ci) h = x; else break; }
+    if (h < 0) {
+      const end = a.heads.length ? a.heads[0] : blocks.length;
+      return { i: -1, start: 0, end, label: a.heads.length ? '冒頭（最初の見出しの前）' : '作品全体', chars: a.pc[end], rows: a.pr[end] };
+    }
+    const s = a.sections.find(x => x.i === h);
+    return { i: h, start: h + 1, end: s.end, label: '「' + (blocks[h].text || '無題の見出し') + '」', chars: s.chars, rows: s.rows };
+  }
+  let statsTimer = null;
+  function scheduleStats() { clearTimeout(statsTimer); statsTimer = setTimeout(renderStats, 150); }
+  function renderStats() {
+    const a = analysis = analyze();
+    const cur = sectionAt(a, locate(lastSel.start).i);
+    const target = Number(state.settings.target) || 0;
+    const ratio = target ? Math.min(1, cur.chars / target) : 0;
+    const done = !!target && cur.chars >= target;
+    $('#cntChars').textContent = fmt(cur.chars);
+    $('#cntGenko').textContent = sheets(cur.chars, cur.rows).toFixed(1);
+    $('#goalLineFill').style.width = (ratio * 100) + '%';
+    $('#goalLine').classList.toggle('done', done);
+    $('#stSecLabel').textContent = a.heads.length ? 'この章 ' + cur.label : '作品全体（見出しなし）';
+    $('#stChars').textContent = fmt(cur.chars);
+    $('#stGenko').textContent = sheets(cur.chars, cur.rows).toFixed(1);
+    $('#stTotal').textContent = fmt(a.total);
+    $('#stTotalGenko').textContent = sheets(a.total, a.rows).toFixed(1);
+    $('#goalFill').style.width = (ratio * 100) + '%';
+    $('#goalBar').classList.toggle('done', done);
+    $('#goalText').textContent = !target ? '目標は設定されていません' : done ? '目標に達しました' : `あと ${fmt(target - cur.chars)} 字（${Math.floor(cur.chars / target * 100)}%）`;
+    $('#workChars').textContent = fmt(a.total);
+    $('#workGenko').textContent = sheets(a.total, a.rows).toFixed(1);
+    if (drawerOpen()) renderToc();
+  }
+  function renderToc() {
+    const a = analysis || (analysis = analyze());
+    const ol = $('#toc');
+    ol.textContent = '';
+    const cur = nearestHeading(locate(lastSel.start).i);
+    for (const s of a.sections) {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'toc-item lv' + s.level + (s.i === cur ? ' is-current' : '');
+      b.dataset.i = s.i;
+      const name = document.createElement('span'); name.className = 'toc-name'; name.textContent = blocks[s.i].text || '（無題の見出し）';
+      const cnt = document.createElement('span'); cnt.className = 'toc-count'; cnt.textContent = fmt(s.chars) + '字';
+      b.append(name, cnt);
+      li.append(b);
+      ol.append(li);
+    }
+    $('#tocEmpty').hidden = a.sections.length > 0;
+  }
+  $('#toc').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-i]');
+    if (!b) return;
+    const i = Number(b.dataset.i);
+    setDrawer(false);
+    if (viewMode !== 'edit') setView('edit');
+    if (!blocks[i]) return;
+    if (isTouch) { lastSel = { start: starts[i], end: starts[i] }; state.caret = starts[i]; }
+    else setSel(starts[i], starts[i], { scroll: false });
+    scrollToStart(editor, editor.children[i]);
+    scheduleCaretUi();
   });
-  $('#chTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); placeCaret(ta.selectionStart); } });
-  $('#workTitle').addEventListener('input', (e) => { state.title = e.target.value; touchMeta(); updateDocTitle(); });
-  $('#hintClose').addEventListener('click', () => {
-    state.hintDismissed = true;
-    saveLocalSoon();
+
+  // ---------- rendering ----------
+  function applySettings() {
+    const s = state.settings;
+    const root = document.documentElement.style;
+    root.setProperty('--fs', s.fs + 'px');
+    root.setProperty('--lh', String(s.lh));
+    root.setProperty('--line-chars', String(s.lineChars));
+    root.setProperty('--f-text', s.font === 'gothic' ? 'var(--f-ui)' : 'var(--f-body)');
+    root.setProperty('--f-head', s.font === 'gothic' ? 'var(--f-ui)' : 'var(--f-display)');
+    stage.classList.toggle('vertical', s.vertical);
+    stage.classList.toggle('horizontal', !s.vertical);
+    $('#btnVertical').setAttribute('aria-pressed', String(s.vertical));
+    $('#btnHorizontal').setAttribute('aria-pressed', String(!s.vertical));
+    if (!s.dimWhileTyping) document.body.classList.remove('typing');
+  }
+  function renderPreview() {
+    const tcy = state.settings.vertical && state.settings.tcy;
+    preview.innerHTML = blocks.map(b => {
+      if (b.level) return `<h${b.level}>${lineToHtml(b.text, tcy)}</h${b.level}>`;
+      return b.text.trim() ? `<p>${lineToHtml(b.text, tcy)}</p>` : '<p><br></p>';
+    }).join('');
+    preview.scrollTop = 0; preview.scrollLeft = 0;
+    const el = preview.children[locate(lastSel.start).i];
+    if (el) scrollToStart(preview, el);
+  }
+  function renderHint() { $('#sampleHint').hidden = !(state.pristine && !state.hintDismissed); }
+  function updateDocTitle() { document.title = (state.title ? state.title + ' | ' : '') + '原稿帳'; }
+  function renderDrawer() { $('#workTitle').value = state.title; analysis = analyze(); renderToc(); }
+
+  // Load state.md into the editor from scratch (start-up, cloud merge, import).
+  function loadDocument(focus) {
+    blocks = fromMd(state.md);
+    renderEditor();
+    hist.undo = []; hist.redo = [];
+    hist.lastMd = toMd(blocks);
+    state.md = hist.lastMd;
+    indentEl = null;
+    const pos = Math.min(state.caret || 0, plainLength());
+    lastSel = { start: pos, end: pos };
+    applySettings();
+    if (viewMode === 'preview') renderPreview();
+    else if (focus && !isTouch) setSel(pos);
+    else { const r = rangeAt(pos, pos); scrollToRange(r); }
+    lastCrumbKey = ''; lastHead = -2;
+    $('#workTitle').value = state.title;
+    renderStats();
+    updateCaretUi();
+    updateDocTitle();
     renderHint();
-    if (!isTouch && viewMode === 'edit') placeCaret(ta.selectionStart, ta.selectionEnd);
-  });
+    if (panel) renderPanel();
+    if (!findbar.hidden) updateFind();
+  }
 
-  // ---------- chapters drawer ----------
+  // ---------- save state ----------
+  const cloud = { mode: 'local', col: null, busy: false, again: false, timer: null, gcTimer: null, error: '', lastSaved: 0, known: new Set(), referenced: new Set(), garbage: new Set() };
+  let lastWarnShown = '';
+  function updateSaveState() {
+    let short, detail, cls = '';
+    if (cloud.mode === 'connecting') { short = '接続中…'; detail = '保存先に接続しています。このブラウザには保存済みです。'; cls = 'busy'; }
+    else if (cloud.mode === 'cloud') {
+      if (cloud.error) { short = '保存エラー'; detail = cloud.error; cls = 'warn'; }
+      else if (cloud.busy || state.dirty) { short = '保存中…'; detail = 'あなたのアカウントに保存しています。'; cls = 'busy'; }
+      else {
+        const t = cloud.lastSaved ? new Date(cloud.lastSaved).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
+        short = '保存済み';
+        detail = `claude.ai のあなたのアカウントに保存済み${t ? '（' + t + '）' : ''}。ほかの人には見えず、別の端末からも続きを書けます。`;
+      }
+    } else if (cloud.mode === 'readonly') { short = 'この端末のみ'; detail = '閲覧権限のため、このブラウザにだけ保存しています。'; cls = 'warn'; }
+    else if (!localOk) { short = '保存エラー'; detail = 'このブラウザに保存できません。メニューの「書き出し・読み込み」から .md を書き出して保管してください。'; cls = 'warn'; }
+    else { short = '保存済み'; detail = 'このブラウザに自動保存しています。ブラウザのデータを消すと失われるため、ときどきメニューの「書き出し・読み込み」から .md を書き出してください。'; }
+    $('#saveState').className = 'save' + (cls ? ' ' + cls : '');
+    $('#saveText').textContent = short;
+    $('#saveDetail').textContent = detail;
+    $('#btnStats').title = '文字数・目標 ／ ' + detail;
+    if (cls === 'warn') { if (detail !== lastWarnShown) { lastWarnShown = detail; toast(detail); } }
+    else lastWarnShown = '';
+  }
+
+  // Cloud layout: "work" holds the title, settings and an ordered list of chunk ids; each "md_<hash>"
+  // doc holds one slice of the markdown (split at 大見出し, at most CHUNK chars). Chunks are named by
+  // their content, so an edit rewrites only the chunk it touched and "work" always points at a
+  // complete set; chunks nobody points at any more are deleted later.
+  const CHUNK = 60000;
+  function chunkMd(md) {
+    const cuts = [0];
+    for (let i = md.indexOf('\n# '); i !== -1; i = md.indexOf('\n# ', i + 1)) cuts.push(i + 1);
+    cuts.push(md.length);
+    const out = [];
+    for (let c = 0; c < cuts.length - 1; c++) {
+      let a = cuts[c];
+      const b = cuts[c + 1];
+      if (a === b) continue;
+      while (b - a > CHUNK) {
+        let cut = md.lastIndexOf('\n', a + CHUNK);
+        cut = cut > a ? cut + 1 : a + CHUNK;
+        const code = md.charCodeAt(cut - 1);
+        if (code >= 0xD800 && code <= 0xDBFF) cut -= 1;
+        out.push(md.slice(a, cut));
+        a = cut;
+      }
+      out.push(md.slice(a, b));
+    }
+    if (!out.length) out.push('');
+    return out;
+  }
+  function hash53(str) {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) { const ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+  }
+  const chunkId = (s) => 'md_' + hash53(s).toString(36) + '_' + s.length.toString(36);
+
+  function scheduleSync() {
+    if (cloud.mode !== 'cloud') return;
+    clearTimeout(cloud.timer);
+    cloud.timer = setTimeout(flush, 1500);
+    updateSaveState();
+  }
+  async function withRetry(fn) {
+    try { return await fn(); } catch (e) {
+      if (e && e.code === 'unavailable') { await new Promise(r => setTimeout(r, 400 + Math.random() * 600)); return fn(); }
+      throw e;
+    }
+  }
+  async function flush() {
+    if (cloud.mode !== 'cloud' || !state.dirty) return;
+    if (cloud.busy) { cloud.again = true; return; }
+    clearTimeout(cloud.timer);
+    cloud.busy = true; cloud.error = '';
+    updateSaveState();
+    const stamp = state.updatedAt;
+    try {
+      const chunks = chunkMd(state.md);
+      const ids = chunks.map(chunkId);
+      for (let j = 0; j < chunks.length; j++) {
+        cloud.garbage.delete(ids[j]);
+        if (cloud.known.has(ids[j])) continue;
+        await withRetry(() => cloud.col.doc(ids[j]).set({ text: chunks[j] }));
+        cloud.known.add(ids[j]);
+      }
+      const meta = { v: 2, title: state.title, settings: Object.assign({}, state.settings), updatedAt: stamp, chunks: ids };
+      await withRetry(() => cloud.col.doc('work').set(meta));
+      for (const id of cloud.referenced) if (!ids.includes(id)) cloud.garbage.add(id);
+      cloud.referenced = new Set(ids);
+      state.syncedAt = stamp;
+      if (state.updatedAt === stamp) state.dirty = false;
+      cloud.lastSaved = Date.now();
+      if (cloud.garbage.size) scheduleGc();
+    } catch (e) {
+      const code = e && e.code;
+      if (code === 'invalid_argument') cloud.mode = 'readonly';
+      else if (code === 'revoked' || code === 'not_granted' || code === 'capability_disabled' || code === 'capability_removed') cloud.mode = 'local';
+      else if (code === 'quota_exceeded') cloud.error = '保存容量の上限に達しました。「書き出し・読み込み」から .md を書き出して保管してください（このブラウザには保存済み）。';
+      else { cloud.error = 'アカウントへの保存に失敗しました。少ししてから自動で再試行します（このブラウザには保存済み）。'; setTimeout(scheduleSync, 10000); }
+    } finally {
+      cloud.busy = false;
+      saveLocalSoon();
+      updateSaveState();
+      if (cloud.again) { cloud.again = false; if (state.dirty) scheduleSync(); }
+    }
+  }
+  function scheduleGc() { clearTimeout(cloud.gcTimer); cloud.gcTimer = setTimeout(gc, 15000); }
+  async function gc() {
+    if (cloud.mode !== 'cloud') return;
+    if (cloud.busy || state.dirty) { scheduleGc(); return; }
+    cloud.busy = true;
+    try {
+      for (const id of Array.from(cloud.garbage)) {
+        if (cloud.referenced.has(id)) { cloud.garbage.delete(id); continue; }
+        await cloud.col.doc(id).delete();
+        cloud.garbage.delete(id);
+        cloud.known.delete(id);
+      }
+    } catch { /* try again on a later save */ }
+    finally {
+      cloud.busy = false;
+      if (cloud.again) { cloud.again = false; if (state.dirty) scheduleSync(); }
+    }
+  }
+  function readRemote(docs) {
+    for (const id of Object.keys(docs)) if (id.startsWith('md_')) cloud.known.add(id);
+    const w = docs.work;
+    if (w && Array.isArray(w.chunks)) {
+      cloud.referenced = new Set(w.chunks);
+      for (const id of cloud.known) if (!cloud.referenced.has(id)) cloud.garbage.add(id);
+      const parts = w.chunks.map(id => (docs[id] && typeof docs[id].text === 'string' ? docs[id].text : null));
+      if (parts.some(p => p === null)) return null;
+      return { md: parts.join(''), title: typeof w.title === 'string' ? w.title : '', settings: w.settings, at: w.updatedAt || 0 };
+    }
+    const m = docs.meta;
+    if (m && Array.isArray(m.order)) {
+      const chapters = m.order.map(id => docs['ch_' + id]).filter(Boolean);
+      if (!chapters.length) return null;
+      const at = Math.max(m.updatedAt || 0, ...chapters.map(c => c.updatedAt || 0));
+      return { md: chaptersToMd(chapters), title: typeof m.title === 'string' ? m.title : '', settings: m.settings, at, v1: true };
+    }
+    return null;
+  }
+  function takeRemote(r) {
+    state.md = r.md;
+    state.title = r.title;
+    if (r.settings) state.settings = Object.assign(defaultSettings(), r.settings);
+    state.updatedAt = r.at;
+    state.syncedAt = r.at;
+    state.dirty = !!r.v1;
+    state.pristine = false;
+  }
+  // Returns true when the text in the editor has to be reloaded.
+  function mergeRemote(r) {
+    if (!r) { if (!state.pristine) state.dirty = true; return false; }
+    if (r.md === state.md && r.title === state.title) { state.syncedAt = r.at; state.dirty = !!r.v1 || state.dirty && state.updatedAt > r.at; return false; }
+    if (state.pristine) { takeRemote(r); return true; }
+    if (!state.dirty) {
+      if (r.at >= state.syncedAt) { takeRemote(r); return true; }
+      state.dirty = true;
+      return false;
+    }
+    if (r.at <= state.syncedAt) return false;
+    if (state.updatedAt >= r.at) {
+      state.recovered = { md: r.md, title: r.title, at: r.at };
+      toast('別の端末で書かれた版がありました。この端末の原稿を残し、別の版は「書き出し・読み込み」から書き出せます');
+      return false;
+    }
+    state.recovered = { md: state.md, title: state.title, at: state.updatedAt };
+    takeRemote(r);
+    toast('別の端末で書かれた新しい原稿を読み込みました。この端末の未同期の版は「書き出し・読み込み」から書き出せます');
+    return true;
+  }
+  async function initCloud() {
+    const c = window.claude;
+    if (!c || typeof c.use !== 'function') { cloud.mode = 'local'; updateSaveState(); return; }
+    cloud.mode = 'connecting';
+    updateSaveState();
+    try {
+      const [db, user] = await Promise.all([c.use('db'), c.use('user')]);
+      const uid = user ? await user.id() : null;
+      if (!db || !uid) { cloud.mode = 'local'; updateSaveState(); return; }
+      const col = db.collection('data/users/' + uid);
+      const snap = await withRetry(() => col.get());
+      const docs = {};
+      for (const d of snap.docs) if (d.exists) docs[d.id] = d.data();
+      cloud.col = col;
+      cloud.mode = 'cloud';
+      if (mergeRemote(readRemote(docs))) loadDocument(document.activeElement === editor);
+      else { $('#workTitle').value = state.title; lastCrumbKey = ''; updateCaretUi(); }
+      saveLocalNow();
+      if (state.dirty) scheduleSync();
+      if (cloud.garbage.size) scheduleGc();
+      updateSaveState();
+    } catch {
+      cloud.mode = 'local';
+      updateSaveState();
+    }
+  }
+
+  // ---------- outline drawer ----------
+  const drawerOpen = () => document.body.classList.contains('drawer-open');
   function setDrawer(open) {
     document.body.classList.toggle('drawer-open', open);
     $('#scrim').hidden = !open;
@@ -1028,103 +1586,46 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     if (open) {
       closePop();
       renderDrawer();
-      const c = $('#chList .is-current .ch-open');
+      const c = $('#toc .is-current') || $('#toc .toc-item') || $('#workTitle');
       if (c) c.focus({ preventScroll: true });
     }
   }
-  const drawerOpen = () => document.body.classList.contains('drawer-open');
   $('#btnDrawer').addEventListener('click', () => setDrawer(!drawerOpen()));
+  $('#crumb').addEventListener('click', () => setDrawer(true));
   $('#drawerClose').addEventListener('click', () => setDrawer(false));
   $('#scrim').addEventListener('click', () => setDrawer(false));
-
-  function openChapter(id, focus = true) {
-    if (document.activeElement === ta) state.carets[state.currentId] = ta.selectionStart;
-    state.currentId = id;
+  $('#workTitle').addEventListener('input', (e) => { state.title = e.target.value; touch(); updateDocTitle(); scheduleCaretUi(); });
+  $('#hintClose').addEventListener('click', () => {
+    state.hintDismissed = true;
     saveLocalSoon();
-    renderChapterList();
-    loadEditor(focus);
-    renderStats();
-    if (panel === 'check') renderPanel();
-    if (!findbar.hidden) updateFind();
-  }
-
-  $('#btnAddChapter').addEventListener('click', () => {
-    const id = newId();
-    const ch = { id, title: `第${state.chapters.length + 1}話`, body: '　', updatedAt: Date.now() };
-    state.chapters.push(ch);
-    state.carets[id] = 1;
-    touchChapter(ch);
-    touchMeta();
-    setDrawer(false);
-    if (viewMode !== 'edit') setView('edit');
-    openChapter(id);
     renderHint();
+    if (!isTouch && viewMode === 'edit') setSel(lastSel.start, lastSel.end, { scroll: false });
   });
 
-  $('#chList').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-act]');
-    if (!b) return;
-    const id = b.closest('.ch-item').dataset.id;
-    const i = state.chapters.findIndex(c => c.id === id);
-    switch (b.dataset.act) {
-      case 'open':
-        setDrawer(false);
-        openChapter(id);
-        break;
-      case 'up':
-      case 'down': {
-        const j = b.dataset.act === 'up' ? i - 1 : i + 1;
-        if (j < 0 || j >= state.chapters.length) return;
-        [state.chapters[i], state.chapters[j]] = [state.chapters[j], state.chapters[i]];
-        touchMeta();
-        renderChapterList();
-        const again = document.querySelector(`.ch-item[data-id="${id}"] [data-act="${b.dataset.act}"]`);
-        if (again && !again.disabled) again.focus(); else { const o = $('#chList .is-current .ch-open'); if (o) o.focus(); }
-        break;
-      }
-      case 'del': {
-        if (state.chapters.length === 1) { toast('章が１つしかないため削除できません'); return; }
-        const [removed] = state.chapters.splice(i, 1);
-        countCache.delete(id);
-        markPending(id);
-        touchMeta();
-        openChapter(state.chapters[Math.max(0, i - 1)].id, false);
-        renderStats();
-        toast(`「${removed.title || '無題の章'}」を削除しました`, '元に戻す', () => {
-          state.chapters.splice(Math.min(i, state.chapters.length), 0, removed);
-          touchChapter(removed);
-          touchMeta();
-          openChapter(removed.id, !drawerOpen());
-          toast('元に戻しました');
-        });
-        break;
-      }
-    }
-  });
-
-  // ---------- view mode ----------
+  // ---------- view mode and settings ----------
   function setView(mode) {
     viewMode = mode;
     $('#btnPreview').setAttribute('aria-pressed', String(mode === 'preview'));
-    ta.hidden = mode !== 'edit';
+    editor.hidden = mode !== 'edit';
     preview.hidden = mode !== 'preview';
-    document.querySelectorAll('[data-ins]').forEach(b => { b.disabled = mode !== 'edit'; });
+    for (const b of document.querySelectorAll('[data-ins], #btnLevel')) b.disabled = mode !== 'edit';
     if (mode === 'preview') renderPreview();
+    scheduleCaretUi();
   }
   $('#btnPreview').addEventListener('click', () => {
-    if (viewMode === 'preview') { setView('edit'); if (!isTouch) placeCaret(ta.selectionStart, ta.selectionEnd); }
+    if (viewMode === 'preview') { setView('edit'); if (!isTouch) setSel(lastSel.start, lastSel.end); }
     else setView('preview');
   });
-
   function setSetting(key, value) {
     state.settings[key] = value;
     applySettings();
     if (viewMode === 'preview') renderPreview();
-    touchMeta();
+    else if (key === 'vertical' || key === 'fs' || key === 'lineChars') scrollToRange(rangeAt(lastSel.start, lastSel.end));
+    touch();
   }
   $('#btnVertical').addEventListener('click', () => setSetting('vertical', true));
   $('#btnHorizontal').addEventListener('click', () => setSetting('vertical', false));
-  stage.addEventListener('click', (e) => { if (e.target === stage && viewMode === 'edit') ta.focus(); });
+  stage.addEventListener('click', (e) => { if (e.target === stage && viewMode === 'edit') setSel(lastSel.start, lastSel.end); });
 
   // ---------- popovers ----------
   let openPop = null;
@@ -1135,8 +1636,17 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     el.hidden = false;
     btn.setAttribute('aria-expanded', 'true');
     openPop = { el, btn };
-    if (popId === 'statsPop') { renderStats(); $('#targetInput').value = state.settings.target || ''; }
-    else { const first = el.querySelector('button'); if (first) first.focus(); }
+    if (popId === 'levelPop') {
+      const bar = $('#bar').getBoundingClientRect(), b = btn.getBoundingClientRect();
+      el.style.left = Math.max(0, Math.min(b.left - bar.left, bar.width - el.offsetWidth)) + 'px';
+      el.style.top = (b.bottom - bar.top + 6) + 'px';
+    } else if (popId === 'statsPop') {
+      renderStats();
+      $('#targetInput').value = state.settings.target || '';
+    } else {
+      const first = el.querySelector('button');
+      if (first) first.focus();
+    }
   }
   function closePop() {
     if (!openPop) return;
@@ -1146,12 +1656,19 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
   }
   $('#btnStats').addEventListener('click', (e) => togglePop('statsPop', e.currentTarget));
   $('#btnMenu').addEventListener('click', (e) => togglePop('menuPop', e.currentTarget));
+  $('#btnLevel').addEventListener('click', (e) => { if (!e.currentTarget.disabled) togglePop('levelPop', e.currentTarget); });
+  $('#levelPop').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-level]');
+    if (!b) return;
+    closePop();
+    setLevel(Number(b.dataset.level));
+  });
   document.addEventListener('pointerdown', (e) => {
     if (openPop && !openPop.el.contains(e.target) && !openPop.btn.contains(e.target)) closePop();
   });
   $('#targetInput').addEventListener('input', (e) => {
     state.settings.target = Math.max(0, Math.floor(Number(e.target.value) || 0));
-    touchMeta();
+    touch();
     renderStats();
   });
   $('#menuPop').addEventListener('click', (e) => {
@@ -1174,10 +1691,11 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
   // ---------- side panel ----------
   panelEl.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) openPanel(null); });
   function openPanel(name) {
+    if (panel === 'check' && name !== 'check' && HL) CSS.highlights.delete('check');
     panel = name;
     panelEl.hidden = !name;
     if (name) renderPanel();
-    else if (!isTouch && viewMode === 'edit') ta.focus({ preventScroll: true });
+    else if (!isTouch && viewMode === 'edit') setSel(lastSel.start, lastSel.end, { scroll: false });
   }
   function renderPanel() {
     panelEl.textContent = '';
@@ -1188,110 +1706,114 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
   }
 
   // ---------- find & replace ----------
-  function matchPositions(v, q) {
-    const out = [];
-    if (!q) return out;
-    let i = v.indexOf(q);
-    while (i !== -1 && out.length < 10000) { out.push(i); i = v.indexOf(q, i + q.length); }
-    return out;
+  const find = { q: '', matches: [], index: -1 };
+  let findTimer = null;
+  function scheduleFind() { clearTimeout(findTimer); findTimer = setTimeout(() => updateFind({ from: find.index >= 0 ? find.matches[find.index] : lastSel.start, scroll: false }), 250); }
+  function computeMatches() {
+    find.q = $('#findQ').value;
+    find.matches = [];
+    if (!find.q) return;
+    const text = plainText();
+    for (let i = text.indexOf(find.q); i !== -1 && find.matches.length < 5000; i = text.indexOf(find.q, i + find.q.length)) find.matches.push(i);
   }
-  function openFind(withReplace) {
+  function paintFind() {
+    if (!HL) return;
+    const all = new Highlight(), current = new Highlight();
+    const n = find.q.length;
+    find.matches.forEach((m, j) => { if (j === find.index) current.add(rangeAt(m, m + n)); else if (j < 2000) all.add(rangeAt(m, m + n)); });
+    CSS.highlights.set('find', all);
+    CSS.highlights.set('find-current', current);
+  }
+  function clearFindPaint() { if (HL) { CSS.highlights.delete('find'); CSS.highlights.delete('find-current'); } }
+  function showFindCount() {
+    $('#findCount').textContent = !find.q ? '' : !find.matches.length ? '見つかりません' : find.index >= 0 ? `${find.index + 1} / ${find.matches.length}件` : `${find.matches.length}件`;
+  }
+  function revealMatch() {
+    const m = find.matches[find.index];
+    if (m == null) return;
+    if (viewMode !== 'edit') setView('edit');
+    if (HL) scrollToRange(rangeAt(m, m + find.q.length));
+    else { setSel(m, m + find.q.length); findArmed = true; }
+  }
+  function updateFind({ from = lastSel.start, scroll = true } = {}) {
+    if (findbar.hidden) return;
+    computeMatches();
+    find.index = find.matches.findIndex(m => m >= from);
+    if (find.index < 0 && find.matches.length) find.index = 0;
+    paintFind();
+    showFindCount();
+    if (scroll && find.index >= 0) revealMatch();
+  }
+  function findStep(dir) {
+    if (findbar.hidden) { openFind(); return; }
+    if (find.q !== $('#findQ').value) updateFind({ scroll: false });
+    const n = find.matches.length;
+    if (!n) { showFindCount(); return; }
+    find.index = find.index < 0 ? (dir > 0 ? 0 : n - 1) : (find.index + dir + n) % n;
+    paintFind();
+    showFindCount();
+    revealMatch();
+  }
+  function openFind() {
     findbar.hidden = false;
     $('#btnFind').setAttribute('aria-pressed', 'true');
-    if (withReplace) setReplace(true);
-    const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
+    const s = getSel() || lastSel;
+    const sel = plainText().slice(s.start, s.end);
     const q = $('#findQ');
-    if (sel && !sel.includes('\n') && sel.length <= 50 && document.activeElement === ta) q.value = sel;
-    q.focus(); q.select();
-    updateFind();
+    if (sel && !sel.includes('\n') && sel.length <= 50) q.value = sel;
+    q.focus();
+    q.select();
+    updateFind({ scroll: false });
   }
   function closeFind() {
+    const m = find.matches[find.index];
+    const n = find.q.length;
     findbar.hidden = true;
     findArmed = false;
+    clearFindPaint();
     $('#btnFind').setAttribute('aria-pressed', 'false');
-    if (viewMode === 'edit') ta.focus({ preventScroll: true });
+    if (viewMode !== 'edit') return;
+    if (HL && m != null) setSel(m, m + n);
+    else if (!isTouch) setSel(lastSel.start, lastSel.end, { scroll: false });
   }
   function setReplace(on) {
     $('#replRow').hidden = !on;
     $('#btnReplace').setAttribute('aria-pressed', String(on));
     if (on) $('#replQ').focus();
   }
-  function updateFind() {
-    if (findbar.hidden) return;
-    const q = $('#findQ').value;
-    const pos = matchPositions(ta.value, q);
-    const s = ta.selectionStart, e = ta.selectionEnd;
-    const k = e - s === q.length ? pos.indexOf(s) : -1;
-    $('#findCount').textContent = !q ? '' : !pos.length ? '見つかりません' : k >= 0 ? `${k + 1} / ${pos.length}件` : `${pos.length}件`;
-    const other = $('#findOther');
-    other.textContent = '';
-    if (q) {
-      for (const c of state.chapters) {
-        if (c.id === state.currentId) continue;
-        const n = matchPositions(c.body, q).length;
-        if (!n) continue;
-        const b = document.createElement('button');
-        b.type = 'button'; b.className = 'chip'; b.dataset.id = c.id;
-        b.textContent = `${c.title || '無題の章'}（${n}）`;
-        other.append(b);
-      }
-      if (other.childElementCount) other.prepend(Object.assign(document.createElement('span'), { textContent: 'ほかの章：' }));
-    }
-    other.hidden = !other.childElementCount;
-  }
-  function selectRange(s, e) {
-    if (viewMode !== 'edit') setView('edit');
-    placeCaret(s, e);
-  }
-  function findStep(dir, fromStart) {
-    const q = $('#findQ').value;
-    if (!q) { openFind(); return; }
-    const v = ta.value;
-    let i;
-    if (dir > 0) {
-      i = v.indexOf(q, fromStart ? 0 : ta.selectionEnd);
-      if (i < 0) i = v.indexOf(q);
-    } else {
-      i = ta.selectionStart > 0 ? v.lastIndexOf(q, ta.selectionStart - 1) : -1;
-      if (i < 0) i = v.lastIndexOf(q);
-    }
-    if (i < 0) { updateFind(); return; }
-    selectRange(i, i + q.length);
-    findArmed = true;
-    updateFind();
-  }
   $('#btnFind').addEventListener('click', () => (findbar.hidden ? openFind() : closeFind()));
   $('#findClose').addEventListener('click', closeFind);
   $('#btnReplace').addEventListener('click', () => setReplace($('#replRow').hidden));
-  $('#findQ').addEventListener('input', updateFind);
-  $('#findQ').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); }
-  });
+  $('#findQ').addEventListener('input', () => updateFind());
+  $('#findQ').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); } });
   $('#findNext').addEventListener('click', () => findStep(1));
   $('#findPrev').addEventListener('click', () => findStep(-1));
   $('#replOne').addEventListener('click', () => {
-    const q = $('#findQ').value;
-    if (q && ta.value.slice(ta.selectionStart, ta.selectionEnd) === q) insertText($('#replQ').value);
-    findStep(1);
+    if (find.q !== $('#findQ').value) updateFind({ scroll: false });
+    const m = find.matches[find.index];
+    if (m == null) { findStep(1); return; }
+    const r = $('#replQ').value;
+    applyEdit(m, m + find.q.length, r, { kind: 'replace', focus: !HL, select: !HL });
+    updateFind({ from: m + r.length });
   });
   $('#replAll').addEventListener('click', () => {
-    const q = $('#findQ').value;
+    const q = $('#findQ').value, r = $('#replQ').value;
     if (!q) return;
-    const n = matchPositions(ta.value, q).length;
-    if (!n) { toast('見つかりませんでした'); return; }
-    if (viewMode !== 'edit') setView('edit');
-    ta.focus({ preventScroll: true });
-    ta.setSelectionRange(0, ta.value.length);
-    insertText(ta.value.split(q).join($('#replQ').value));
-    ta.setSelectionRange(0, 0);
-    toast(`${n}件置換しました（Ctrl/⌘+Z で元に戻せます）`);
-    updateFind();
-  });
-  $('#findOther').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-id]');
-    if (!b) return;
-    openChapter(b.dataset.id, false);
-    findStep(1, true);
+    let count = 0;
+    const nb = blocks.map(b => {
+      if (!b.text.includes(q)) return b;
+      const parts = b.text.split(q);
+      count += parts.length - 1;
+      return { level: b.level, text: parts.join(r) };
+    });
+    if (!count) { toast('見つかりませんでした'); return; }
+    const before = lastSel;
+    blocks = nb;
+    renderEditor();
+    commit('replace', before);
+    contentChanged();
+    updateFind({ scroll: false });
+    toast(`${count}件置換しました（Ctrl/⌘+Z で元に戻せます）`);
   });
 
   // ---------- notation check ----------
@@ -1302,56 +1824,54 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     { re: /[！？!?]+(?=[^！？!?\s　」』）)\]〉》】])/g, msg: '「！」「？」の後には全角スペースを１つ空けます' },
     { re: /[!?]+/g, msg: '縦書きでは全角の「！」「？」がおすすめです', verticalOnly: true },
     { re: /。(?=[」』])/g, msg: '閉じかっこの直前の「。」は省くのが一般的です' },
-    { re: /^(?=[^\s　「『（(〈《【〔［“"―…＊*◇◆□■○●☆★※])./gmu, msg: '段落の頭が字下げされていません' },
+    { re: /^(?=[^\s　「『（(〈《【〔［“"―…＊*◇◆□■○●☆★※])./gu, msg: '段落の頭が字下げされていません' },
   ];
-  function runChecks(text) {
+  function runChecks() {
     const hits = [];
-    for (const rule of CHECKS) {
-      if (rule.verticalOnly && !state.settings.vertical) continue;
-      let n = 0;
-      for (const m of text.matchAll(rule.re)) {
-        hits.push({ start: m.index, end: m.index + m[0].length, msg: rule.msg });
-        if (++n >= 100) break;
+    for (let i = 0; i < blocks.length && hits.length < 500; i++) {
+      const b = blocks[i];
+      if (b.level || !b.text) continue;
+      for (const rule of CHECKS) {
+        if (rule.verticalOnly && !state.settings.vertical) continue;
+        for (const m of b.text.matchAll(rule.re)) hits.push({ i, start: starts[i] + m.index, end: starts[i] + m.index + m[0].length, msg: rule.msg });
       }
+      const count = (re) => (b.text.match(re) || []).length;
+      if (count(/「/g) !== count(/」/g) || count(/『/g) !== count(/』/g)) hits.push({ i, start: starts[i], end: starts[i] + b.text.length, msg: 'この段落のかぎかっこの開きと閉じの数が合っていません', whole: true });
     }
-    let pos = 0;
-    for (const line of text.split('\n')) {
-      const o1 = (line.match(/「/g) || []).length, c1 = (line.match(/」/g) || []).length;
-      const o2 = (line.match(/『/g) || []).length, c2 = (line.match(/』/g) || []).length;
-      if (o1 !== c1 || o2 !== c2) hits.push({ start: pos, end: pos + line.length, msg: 'この段落のかぎかっこの開きと閉じの数が合っていません', whole: true });
-      pos += line.length + 1;
-    }
-    return hits.sort((a, b) => a.start - b.start);
+    return hits.sort((x, y) => x.start - y.start);
   }
+  let checkTimer = null;
+  function scheduleCheck() { clearTimeout(checkTimer); checkTimer = setTimeout(renderCheck, 600); }
   function renderCheck() {
     const ul = $('#checkList');
     if (!ul) return;
     ul.textContent = '';
-    const text = ta.value;
-    const hits = runChecks(text);
+    const hits = runChecks();
+    if (HL) { const h = new Highlight(); for (const x of hits) h.add(rangeAt(x.start, x.end)); CSS.highlights.set('check', h); }
     if (!hits.length) { ul.innerHTML = '<li class="ok-note">気になる箇所は見つかりませんでした。</li>'; return; }
-    const lineStarts = [0];
-    for (let i = 0; i < text.length; i++) if (text[i] === '\n') lineStarts.push(i + 1);
-    const lineOf = (idx) => { let lo = 0, hi = lineStarts.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (lineStarts[mid] <= idx) lo = mid; else hi = mid - 1; } return lo + 1; };
+    const text = plainText();
     for (const h of hits.slice(0, 300)) {
       const li = document.createElement('li');
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'hit';
-      b.dataset.s = h.start; b.dataset.e = h.end;
-      const line = lineOf(h.start);
-      const ls = lineStarts[line - 1];
-      const nl = text.indexOf('\n', h.start);
-      const le = nl === -1 ? text.length : nl;
+      b.type = 'button';
+      b.className = 'hit';
+      b.dataset.s = h.start;
+      b.dataset.e = h.end;
+      const ls = starts[h.i], le = ls + blocks[h.i].text.length;
       const a = Math.max(ls, h.start - 10), z = Math.min(le, h.end + 10);
       const markEnd = h.whole ? Math.min(h.end, h.start + 20) : h.end;
-      b.innerHTML = `<span class="where">${line}段落目</span><span class="msg">${esc(h.msg)}</span>`
+      const head = nearestHeading(h.i);
+      const where = head >= 0 ? (blocks[head].text || '無題の見出し') : '冒頭';
+      b.innerHTML = `<span class="where">${esc(where)}</span><span class="msg">${esc(h.msg)}</span>`
         + `<span class="snip">${a > ls ? '…' : ''}${esc(text.slice(a, h.start))}<mark>${esc(text.slice(h.start, markEnd) || '␣')}</mark>${esc(text.slice(markEnd, Math.max(markEnd, z)))}${z < le ? '…' : ''}</span>`;
       li.append(b);
       ul.append(li);
     }
     ul.onclick = (e) => {
       const b = e.target.closest('.hit');
-      if (b) selectRange(Number(b.dataset.s), Number(b.dataset.e));
+      if (!b) return;
+      if (viewMode !== 'edit') setView('edit');
+      setSel(Number(b.dataset.s), Number(b.dataset.e));
     };
   }
 
@@ -1386,32 +1906,96 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
       catch (e) { if (!e || e.code !== 'declined') toast('書き出せませんでした' + (e && e.message ? '：' + e.message : '')); }
       return;
     }
-    const mime = filename.endsWith('.json') ? 'application/json' : 'text/plain';
+    const mime = filename.endsWith('.md') ? 'text/markdown' : 'text/plain';
     const url = URL.createObjectURL(new Blob([text], { type: mime + ';charset=utf-8' }));
     const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.append(a); a.click(); a.remove();
+    a.href = url;
+    a.download = filename;
+    document.body.append(a);
+    a.click();
+    a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
   const safeName = (s) => (s || '無題').replace(/[\\/:*?"<>|\n\r\t]/g, '_').trim().slice(0, 60) || '無題';
-  const stamp = () => new Date().toISOString().slice(0, 10);
-
+  const stamp = (t) => new Date(t || Date.now()).toISOString().slice(0, 10);
+  const mdFile = (title, md) => `---\ntitle: ${JSON.stringify(title || '')}\n---\n${md}\n`;
+  function parseMdFile(text) {
+    let title = null, body = text;
+    const fm = /^---\n([\s\S]*?)\n---\n?/.exec(text);
+    if (fm) {
+      body = text.slice(fm[0].length);
+      const m = /^title:\s*(.*)$/m.exec(fm[1]);
+      if (m) { const v = m[1].trim(); try { title = v.startsWith('"') ? JSON.parse(v) : v; } catch { title = v; } }
+    }
+    if (body.endsWith('\n')) body = body.slice(0, -1);
+    return { title, md: body };
+  }
+  function currentSectionLines() {
+    const a = analysis || analyze();
+    const cur = sectionAt(a, locate(lastSel.start).i);
+    return blocks.slice(cur.start, cur.end).map(b => b.text).join('\n').replace(/^\n+|\n+$/g, '');
+  }
+  function confirmBox(message, okLabel, onOk) {
+    const box = $('#importConfirm');
+    box.textContent = '';
+    const div = document.createElement('div');
+    div.className = 'confirm-box';
+    const p = document.createElement('span');
+    p.textContent = message;
+    const row = document.createElement('div');
+    row.className = 'row';
+    const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn danger'; ok.textContent = okLabel;
+    const no = document.createElement('button'); no.type = 'button'; no.className = 'btn'; no.textContent = 'やめる';
+    ok.onclick = () => { box.textContent = ''; onOk(); };
+    no.onclick = () => { box.textContent = ''; };
+    row.append(ok, no);
+    div.append(p, row);
+    box.append(div);
+  }
+  function replaceDocument(title, md) {
+    const before = lastSel;
+    if (title != null) state.title = title;
+    blocks = fromMd(md);
+    renderEditor();
+    commit('import', before);
+    $('#workTitle').value = state.title;
+    lastCrumbKey = '';
+    setSel(0, 0, { focus: !isTouch });
+    editor.scrollTop = 0; editor.scrollLeft = 0;
+    updateDocTitle();
+    contentChanged();
+    toast('読み込みました（Ctrl/⌘+Z で元に戻せます）');
+  }
+  function renderRecovered() {
+    const box = $('#recoveredBox');
+    if (!box) return;
+    box.textContent = '';
+    const r = state.recovered;
+    if (!r) return;
+    const div = document.createElement('div');
+    div.className = 'note-box';
+    const p = document.createElement('span');
+    p.textContent = `同期の際に使われなかった版（${new Date(r.at || Date.now()).toLocaleString('ja-JP')}）が残っています。`;
+    const row = document.createElement('div');
+    row.className = 'row';
+    const ex = document.createElement('button'); ex.type = 'button'; ex.className = 'btn'; ex.textContent = 'その版を .md で書き出す';
+    const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'btn'; rm.textContent = '破棄する';
+    ex.onclick = () => saveFile(`${safeName(r.title)}_別の版_${stamp(r.at)}.md`, mdFile(r.title, r.md));
+    rm.onclick = () => { state.recovered = null; saveLocalSoon(); renderRecovered(); };
+    row.append(ex, rm);
+    div.append(p, row);
+    box.append(div);
+  }
   function setupFile() {
     $('#storageNote').textContent = cloud.mode === 'cloud'
       ? '原稿は claude.ai のあなたのアカウントに保存され、ほかの人には見えません。'
-      : '原稿はこのブラウザに保存されています。ブラウザのデータを消すと失われるため、ときどきバックアップを書き出してください。';
-    $('#expChapter').addEventListener('click', () => { const ch = cur(); saveFile(safeName(ch.title) + '.txt', ch.body); });
-    $('#expAll').addEventListener('click', () => {
-      const text = state.title + '\n\n\n' + state.chapters.map(c => c.title + '\n\n' + c.body).join('\n\n\n') + '\n';
-      saveFile(safeName(state.title) + '.txt', text);
-    });
-    $('#expJson').addEventListener('click', () => {
-      const data = { app: 'genkocho', version: 1, exportedAt: new Date().toISOString(), title: state.title, settings: state.settings, chapters: state.chapters.map(({ id, title, body }) => ({ id, title, body })) };
-      saveFile(`${safeName(state.title)}_${stamp()}.json`, JSON.stringify(data, null, 2));
-    });
-    $('#copyChapter').addEventListener('click', () => {
-      const text = cur().body;
-      const fallback = () => { setView('edit'); ta.focus(); ta.setSelectionRange(0, ta.value.length); toast('本文を選択しました。コピーしてください'); };
+      : '原稿はこのブラウザに保存されています。ブラウザのデータを消すと失われるため、ときどき .md を書き出して保管してください。';
+    renderRecovered();
+    $('#expMd').addEventListener('click', () => saveFile(`${safeName(state.title)}_${stamp()}.md`, mdFile(state.title, state.md)));
+    $('#expTxt').addEventListener('click', () => saveFile(safeName(state.title) + '.txt', (state.title ? state.title + '\n\n' : '') + plainText() + '\n'));
+    $('#copySection').addEventListener('click', () => {
+      const text = currentSectionLines();
+      const fallback = () => toast('コピーできませんでした。本文を選んで Ctrl/⌘+C でコピーしてください');
       try { navigator.clipboard.writeText(text).then(() => toast('この章の本文をコピーしました'), fallback); } catch { fallback(); }
     });
     $('#importFile').addEventListener('change', async (e) => {
@@ -1422,57 +2006,28 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
       let text = new TextDecoder('utf-8').decode(buf);
       if (text.includes('\uFFFD')) { try { text = new TextDecoder('shift_jis').decode(buf); } catch { /* keep utf-8 */ } }
       text = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n');
-      if (/\.json$/i.test(file.name)) {
+      const base = file.name.replace(/\.[^.]+$/, '');
+      if (/\.(md|markdown)$/i.test(file.name)) {
+        const { title, md } = parseMdFile(text);
+        confirmBox(`「${title || base}」で、いまの原稿をすべて置き換えます。`, '置き換える', () => replaceDocument(title ?? state.title, md));
+      } else if (/\.json$/i.test(file.name)) {
         let data = null;
         try { data = JSON.parse(text); } catch { data = null; }
         if (!data || data.app !== 'genkocho' || !Array.isArray(data.chapters) || !data.chapters.length) { toast('原稿帳のバックアップファイルではありません'); return; }
-        const box = $('#importConfirm');
-        box.textContent = '';
-        const div = document.createElement('div'); div.className = 'confirm-box';
-        const p = document.createElement('span');
-        p.textContent = `「${data.title || '無題'}」（${data.chapters.length}章）で、いまの原稿をすべて置き換えます。`;
-        const row = document.createElement('div'); row.className = 'row';
-        row.innerHTML = '<button type="button" class="btn danger" data-r="yes">置き換える</button><button type="button" class="btn" data-r="no">やめる</button>';
-        div.append(p, row);
-        box.append(div);
-        row.addEventListener('click', (ev) => {
-          const r = ev.target.closest('[data-r]');
-          if (!r) return;
-          box.textContent = '';
-          if (r.dataset.r === 'yes') restoreBackup(data);
-        });
-        return;
+        confirmBox(`「${data.title || '無題'}」（${data.chapters.length}章）で、いまの原稿をすべて置き換えます。各章は大見出しになります。`, '置き換える', () => replaceDocument(String(data.title || ''), chaptersToMd(data.chapters)));
+      } else {
+        const before = lastSel;
+        const add = [{ level: 1, text: base }, ...text.replace(/\n$/, '').split('\n').map(t => ({ level: 0, text: t }))];
+        const at = blocks.length === 1 && !blocks[0].text ? 0 : blocks.length;
+        blocks = at === 0 ? add : blocks.concat(add);
+        renderEditor();
+        commit('import', before);
+        if (isTouch) lastSel = { start: starts[at], end: starts[at] }; else setSel(starts[at], starts[at], { scroll: false });
+        scrollToStart(editor, editor.children[at]);
+        contentChanged();
+        toast(`「${base}」を大見出しの章として末尾に追加しました`);
       }
-      const id = newId();
-      const ch = { id, title: file.name.replace(/\.[^.]+$/, ''), body: text, updatedAt: Date.now() };
-      state.chapters.push(ch);
-      touchChapter(ch);
-      touchMeta();
-      openChapter(id);
-      toast(`「${ch.title}」を章として追加しました`);
     });
-  }
-
-  function restoreBackup(data) {
-    const oldIds = state.chapters.map(c => c.id);
-    const now = Date.now();
-    state.title = String(data.title || '');
-    state.settings = Object.assign(defaultSettings(), data.settings || {});
-    const seen = new Set();
-    state.chapters = data.chapters.map(c => {
-      let id = /^[A-Za-z0-9_-]{1,40}$/.test(String(c.id)) ? String(c.id) : newId();
-      if (seen.has(id)) id = newId();
-      seen.add(id);
-      return { id, title: String(c.title ?? ''), body: String(c.body ?? ''), updatedAt: now };
-    });
-    state.currentId = state.chapters[0].id;
-    state.carets = {};
-    for (const id of oldIds) if (!seen.has(id)) markPending(id);
-    state.chapters.forEach(c => markPending(c.id));
-    touchMeta();
-    countCache.clear();
-    renderAll(false);
-    toast('バックアップから復元しました');
   }
 
   // ---------- toast ----------
@@ -1485,7 +2040,7 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     act.onclick = actLabel ? () => { t.hidden = true; actFn(); } : null;
     t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { t.hidden = true; }, actLabel ? 7000 : 2800);
+    toastTimer = setTimeout(() => { t.hidden = true; }, actLabel ? 7000 : Math.max(2800, msg.length * 90));
   }
 
   // ---------- keyboard ----------
@@ -1494,9 +2049,9 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     const k = e.key.toLowerCase();
     if (mod && k === 's') { e.preventDefault(); saveLocalNow(); flush(); toast('保存しました'); }
     else if (mod && k === 'f') { e.preventDefault(); openFind(); }
-    else if ((mod && k === 'g') || e.key === 'F3') { e.preventDefault(); if (findbar.hidden) openFind(); else findStep(e.shiftKey ? -1 : 1); }
+    else if ((mod && k === 'g') || e.key === 'F3') { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); }
     else if (e.key === 'Escape' && !e.isComposing) {
-      if (openPop) { const b = openPop.btn; closePop(); b.focus(); }
+      if (openPop) { const b = openPop.btn; closePop(); if (b.id === 'btnLevel') setSel(lastSel.start, lastSel.end, { scroll: false }); else b.focus(); }
       else if (drawerOpen()) { setDrawer(false); $('#btnDrawer').focus(); }
       else if (!findbar.hidden) closeFind();
       else if (panel) openPanel(null);
@@ -1509,7 +2064,7 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { saveLocalNow(); flush(); } });
 
   setView('edit');
-  renderAll(true);
+  loadDocument(true);
   updateSaveState();
   initCloud();
 })();
