@@ -176,7 +176,42 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
   border: 1px solid var(--rule); border-radius: 6px; background: var(--paper);
 }
 .find-row input:focus { outline: none; border-color: var(--ai); }
-.find-count { min-width: 5.5em; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.find-count {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; min-width: 4.5em; height: 30px; padding: 0 8px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--ink-soft); cursor: pointer;
+  font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.find-count:hover { background: var(--hover); color: var(--ink); }
+.find-count[aria-pressed="true"] { background: var(--ai-soft); color: var(--ai); }
+.find-count svg { width: 15px; height: 15px; flex: none; }
+.find-row:first-child { flex-wrap: nowrap; }
+.find-row:first-child input { min-width: 80px; }
+.find-opts { display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.find-opts::-webkit-scrollbar { display: none; }
+.opts-gap { flex: 1 0 4px; }
+.chip {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 11px;
+  border: 1px solid var(--rule); border-radius: 999px; background: transparent; color: var(--ink-soft);
+  font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.chip:hover { color: var(--ink); border-color: var(--ink-soft); }
+.chip[aria-pressed="true"] { background: var(--ai-soft); border-color: transparent; color: var(--ai); font-weight: 500; }
+.chip svg { width: 13px; height: 13px; }
+.chip-ai { color: var(--ai); }
+.findbar.ai .no-ai { display: none; }
+.findbar.ai #findQ { border-color: var(--ai); }
+.ai-status { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 1.5; color: var(--ink-soft); }
+.spin { flex: none; width: 12px; height: 12px; border: 2px solid var(--rule); border-top-color: var(--ai); border-radius: 50%; animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.find-map { display: block; width: 100%; height: 14px; cursor: pointer; touch-action: none; }
+.search-list .hits { gap: 5px; }
+.search-head { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+.search-head span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-head.lv2 span:first-child { padding-left: 0.8em; }
+.search-head.lv3 span:first-child { padding-left: 1.6em; }
+.search-list .hit .snip mark { background: rgb(232 168 40 / 0.32); color: inherit; }
+.hit.is-current { border-color: var(--ai); box-shadow: inset 3px 0 0 var(--ai); }
+.hit .why { color: var(--ai); }
 
 /* ---------- writing area ---------- */
 .main { display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 0; }
@@ -356,7 +391,8 @@ body.mobile.kb .hint { display: none; }
 body.mobile .find-row { gap: 4px; }
 body.mobile .find-row input { flex-basis: 110px; max-width: none; }
 body.mobile .find-row .tbtn { padding: 0 8px; }
-body.mobile .find-count { min-width: 0; font-size: 11px; }
+body.mobile .find-count { min-width: 0; padding: 0 6px; font-size: 11px; }
+body.mobile .findbar .icon { width: 36px; }
 body.mobile #panel {
   position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; width: auto; max-height: 62%; margin: 0;
   border-left: 0; border-top: 1px solid var(--rule); border-radius: 12px 12px 0 0;
@@ -396,11 +432,13 @@ body.ios-vcaret #editor { caret-color: transparent; }
   .field input[type="range"] { height: 32px; }
   .check { padding-block: 4px; }
   .levels kbd { display: none; }
+  .chip { height: 34px; padding: 0 13px; font-size: 13px; }
   .tbtn:active, .icon:active, .count:active, .crumb:active, .toc-item:active, .menu button:active, .hit:active, .btn:active { background: var(--ai-soft); }
 }
 @media (prefers-reduced-motion: reduce) {
   .drawer, body.drawer-open .drawer, .bar, .goal-line i { transition: none; }
   .fake-caret { animation: none; }
+  .spin { animation: none; }
 }
 </style>
 </head>
@@ -490,19 +528,39 @@ body.ios-vcaret #editor { caret-color: transparent; }
   <div class="findbar" id="findbar" hidden>
     <div class="find-row">
       <input type="search" id="findQ" placeholder="検索（Enter で次へ）" aria-label="検索する文字" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
-      <span class="find-count" id="findCount" aria-live="polite"></span>
-      <button type="button" class="tbtn" id="findPrev">前へ</button>
-      <button type="button" class="tbtn" id="findNext">次へ</button>
-      <button type="button" class="tbtn" id="btnReplace" aria-pressed="false">置換</button>
+      <button type="button" class="find-count" id="btnFindList" aria-pressed="false" title="見つかった箇所を一覧する">
+        <span id="findCount" aria-live="polite"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1" fill="currentColor"/><circle cx="4.5" cy="12" r="1" fill="currentColor"/><circle cx="4.5" cy="18" r="1" fill="currentColor"/></svg>
+      </button>
+      <button type="button" class="icon" id="findPrev" aria-label="前へ" title="前へ（Shift+Enter）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+      </button>
+      <button type="button" class="icon" id="findNext" aria-label="次へ" title="次へ（Enter）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
       <button type="button" class="icon" id="findClose" aria-label="検索を閉じる" title="閉じる（Esc）">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
+    </div>
+    <div class="find-opts" role="toolbar" aria-label="検索の条件">
+      <button type="button" class="chip chip-ai" id="optAi" aria-pressed="false" data-keep hidden title="言葉ではなく内容で探す（AI）">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9zM19 15l.9 2.1 2.1.9-2.1.9L19 21l-.9-2.1-2.1-.9 2.1-.9z"/></svg>AIで探す
+      </button>
+      <button type="button" class="chip no-ai" id="optFuzzy" aria-pressed="true" data-keep title="ひらがなとカタカナ、全角と半角、大文字と小文字、ルビの有無を区別せずに探す">表記ゆれも</button>
+      <button type="button" class="chip" id="optChapter" aria-pressed="false" data-keep title="いまの章（見出しから次の見出しまで）だけを探す">この章</button>
+      <button type="button" class="chip no-ai" id="optTalk" aria-pressed="false" data-keep title="かぎかっこの中（会話）だけを探す">会話</button>
+      <button type="button" class="chip no-ai" id="optNarr" aria-pressed="false" data-keep title="かぎかっこの外（地の文）だけを探す">地の文</button>
+      <button type="button" class="chip no-ai" id="optRegex" aria-pressed="false" data-keep title="正規表現で探す（置換では $1 などが使えます）">正規表現</button>
+      <span class="opts-gap"></span>
+      <button type="button" class="chip no-ai" id="btnReplace" aria-pressed="false">置換</button>
     </div>
     <div class="find-row" id="replRow" hidden>
       <input type="text" id="replQ" placeholder="置き換える文字" aria-label="置き換える文字" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
       <button type="button" class="tbtn" id="replOne">置換して次へ</button>
       <button type="button" class="tbtn" id="replAll">すべて置換</button>
     </div>
+    <div class="ai-status" id="aiStatus" hidden><span class="spin" id="aiSpin" hidden></span><span id="aiMsg"></span><button type="button" class="chip" id="aiStop" hidden>止める</button></div>
+    <canvas class="find-map" id="findMap" title="原稿のどこにあるか（押すと近くの箇所へ）" hidden></canvas>
   </div>
 
   <div class="main">
@@ -551,6 +609,12 @@ body.ios-vcaret #editor { caret-color: transparent; }
   <div class="panel-head"><h2>表記チェック</h2><button type="button" class="icon" data-close aria-label="閉じる"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
   <p class="muted">小説原稿の一般的な決まりごとに沿っているかを本文で確かめます。該当箇所は本文に色が付きます。項目を押すとその場所へ移動します。</p>
   <ul class="hits" id="checkList"></ul>
+</template>
+
+<template id="tpl-search">
+  <div class="panel-head"><h2>検索結果</h2><button type="button" class="icon" data-close aria-label="閉じる"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <p class="muted" id="searchSummary"></p>
+  <div class="search-list" id="searchList"></div>
 </template>
 
 <template id="tpl-settings">
@@ -1330,8 +1394,8 @@ body.ios-vcaret #editor { caret-color: transparent; }
       if (!e.cancelable) { nativeEnter = t === 'insertParagraph'; return; }
       e.preventDefault();
       if (!HL && findArmed && !findbar.hidden) {
-        const s = getSel();
-        if (s && find.q && plainText().slice(s.start, s.end) === find.q) { findStep(t === 'insertLineBreak' ? -1 : 1); return; }
+        const s = getSel(), m = find.matches[find.index];
+        if (s && m && s.start === m.s && s.end === m.e) { findStep(t === 'insertLineBreak' ? -1 : 1); return; }
       }
       findArmed = false;
       handleEnter(t === 'insertLineBreak');
@@ -1443,7 +1507,7 @@ body.ios-vcaret #editor { caret-color: transparent; }
   }
   // Toolbar buttons must not take focus away from the text, or the selection and the phone keyboard go away.
   const keepFocus = (e) => { if (e.target.closest('[data-ins], [data-keep], #btnLevel, #levelPop button')) e.preventDefault(); };
-  for (const el of [$('#barTools'), $('#levelPop')]) {
+  for (const el of [$('#barTools'), $('#levelPop'), findbar]) {
     el.addEventListener('pointerdown', keepFocus);
     el.addEventListener('mousedown', keepFocus);
   }
@@ -1622,6 +1686,7 @@ body.ios-vcaret #editor { caret-color: transparent; }
     $('#btnHorizontal').setAttribute('aria-pressed', String(!s.vertical));
     if (!s.dimWhileTyping) document.body.classList.remove('typing');
     scheduleFakeCaret();
+    if (!findbar.hidden) drawFindMap();
   }
   function renderPreview() {
     const tcy = state.settings.vertical && state.settings.tcy;
@@ -2218,6 +2283,7 @@ body.ios-vcaret #editor { caret-color: transparent; }
     if (panel === 'check' && name !== 'check' && HL) CSS.highlights.delete('check');
     panel = name;
     panelEl.hidden = !name;
+    $('#btnFindList').setAttribute('aria-pressed', String(name === 'search'));
     if (name) {
       if (isTouch && document.activeElement === editor) editor.blur();
       renderPanel();
@@ -2232,44 +2298,167 @@ body.ios-vcaret #editor { caret-color: transparent; }
     handle.dataset.close = '';
     panelEl.append(handle, $('#tpl-' + panel).content.cloneNode(true));
     if (panel === 'check') renderCheck();
+    else if (panel === 'search') { searchKey = ''; syncSearchList(); }
     else if (panel === 'settings') setupSettings();
     else if (panel === 'file') setupFile();
   }
 
   // ---------- find & replace ----------
-  const find = { q: '', matches: [], index: -1 };
+  // Matches are spans of the plain text, {s, e, i} (i: the paragraph). AI hits also carry why, score
+  // and quote. Options are kept per device.
+  const FIND_KEY = 'genkocho/find';
+  const findOpts = { fuzzy: true, regex: false, chapter: false, talk: 0 };
+  try { Object.assign(findOpts, JSON.parse(localStorage.getItem(FIND_KEY) || '{}')); } catch { /* defaults */ }
+  const find = { q: '', matches: [], index: -1, error: '', ai: false, aiQ: '' };
+  const findMap = $('#findMap');
   let findTimer = null;
-  function scheduleFind() { clearTimeout(findTimer); findTimer = setTimeout(() => updateFind({ from: find.index >= 0 ? find.matches[find.index] : lastSel.start, scroll: false }), 250); }
+  function scheduleFind() {
+    clearTimeout(findTimer);
+    findTimer = setTimeout(() => updateFind({ from: find.matches[find.index]?.s ?? lastSel.start, scroll: false }), 250);
+  }
+
+  // "表記ゆれも": width (全角/半角), case and katakana/hiragana compare alike, and ruby and emphasis marks
+  // are looked through. Folded text keeps, for each of its characters, the span of the original it came from.
+  const VS = /[︀-️]|\udb40[\udd00-\uddef]/g;
+  function foldOne(c) {
+    const x = c.charCodeAt(0);
+    if (c.length === 1) {
+      if (x >= 0x30a1 && x <= 0x30f6) return String.fromCharCode(x - 0x60);
+      if (x < 0x80) return c.toLowerCase();
+      if ((x >= 0x3041 && x <= 0x309f) || (x >= 0x4e00 && x <= 0x9fff) || (x > 0x3000 && x <= 0x303f)) return c;
+    }
+    return c.replace(VS, '').normalize('NFKC').toLowerCase().replace(/[ァ-ヶ]/g, (k) => String.fromCharCode(k.charCodeAt(0) - 0x60));
+  }
+  function foldText(t, skip) {
+    let str = '';
+    const from = [], to = [];
+    for (let i = 0; i < t.length;) {
+      let j = i + (t.codePointAt(i) > 0xffff ? 2 : 1);
+      // sound marks and variation selectors belong to the character before them
+      while (j < t.length && (/[゙゚ﾞﾟ︀-️]/.test(t[j]) || (t.charCodeAt(j) === 0xdb40 && /[\udd00-\uddef]/.test(t[j + 1] || '')))) j += t.charCodeAt(j) === 0xdb40 ? 2 : 1;
+      if (!skip || !skip[i]) {
+        const f = foldOne(t.slice(i, j));
+        for (let k = 0; k < f.length; k++) { from.push(i); to.push(j); }
+        str += f;
+      }
+      i = j;
+    }
+    return { str, from, to };
+  }
+  // Positions of a paragraph that are markup, not text: ｜ and 《reading》 of ruby, 《《 》》 of emphasis.
+  function markupMask(t) {
+    const skip = new Uint8Array(t.length);
+    let any = false;
+    const mark = (a, b) => { skip.fill(1, a, b); any = true; };
+    for (const m of t.matchAll(/[|｜](?=《)/g)) mark(m.index, m.index + 1);
+    for (const m of t.matchAll(RE_BOUTEN)) { mark(m.index, m.index + 2); mark(m.index + m[0].length - 2, m.index + m[0].length); }
+    for (const m of t.matchAll(RE_RUBY)) { mark(m.index, m.index + 1); mark(m.index + 1 + m[1].length, m.index + m[0].length); }
+    for (const m of t.matchAll(RE_AUTORUBY)) { const k = m.index + m[1].length; if (!skip[k]) mark(k, m.index + m[0].length); }
+    return any ? skip : null;
+  }
+  const foldCache = new Map();
+  function folded(t) {
+    let f = foldCache.get(t);
+    if (!f) {
+      if (foldCache.size > blocks.length * 2 + 200) foldCache.clear();
+      const R = foldText(t, null), skip = markupMask(t);
+      f = { R, D: skip ? foldText(t, skip) : R };
+      foldCache.set(t, f);
+    }
+    return f;
+  }
+  // Whether each character is inside 「」 or 『』 (dialogue), the brackets included.
+  function talkMask(t) {
+    const m = new Uint8Array(t.length);
+    let depth = 0;
+    for (let i = 0; i < t.length; i++) {
+      const c = t[i];
+      if (c === '「' || c === '『') { depth++; m[i] = 1; }
+      else if (c === '」' || c === '』') { m[i] = 1; if (depth) depth--; }
+      else if (depth) m[i] = 1;
+    }
+    return m;
+  }
+  // The section the caret is in (from its heading to the next heading of the same or a higher level).
+  function chapterSpan() {
+    const sec = sectionAt(analyze(), locate(lastSel.start).i);
+    return { lo: Math.max(0, sec.i), hi: sec.end, label: sec.label };
+  }
+
   function computeMatches() {
     find.q = $('#findQ').value;
     find.matches = [];
+    find.error = '';
     if (!find.q) return;
-    const text = plainText();
-    for (let i = text.indexOf(find.q); i !== -1 && find.matches.length < 5000; i = text.indexOf(find.q, i + find.q.length)) find.matches.push(i);
+    let lo = 0, hi = blocks.length, re = null, qf = '';
+    if (findOpts.chapter) ({ lo, hi } = chapterSpan());
+    if (findOpts.regex) {
+      try { re = new RegExp(find.q, 'gu' + (findOpts.fuzzy ? 'i' : '')); } catch { find.error = '正規表現の誤り'; return; }
+    } else if (findOpts.fuzzy) {
+      qf = foldText(find.q, null).str;
+      if (!qf) return;
+    }
+    for (let i = lo; i < hi && find.matches.length < 5000; i++) {
+      const b = blocks[i], t = b.text;
+      if (!t || (findOpts.talk && b.level)) continue;
+      let spans = [];
+      if (re) {
+        for (const m of t.matchAll(re)) if (m[0]) spans.push([m.index, m.index + m[0].length]);
+      } else if (qf) {
+        const f = folded(t);
+        for (const F of f.D === f.R ? [f.R] : [f.D, f.R]) {
+          for (let k = F.str.indexOf(qf); k !== -1; k = F.str.indexOf(qf, k + qf.length)) spans.push([F.from[k], F.to[k + qf.length - 1]]);
+        }
+        if (f.D !== f.R && spans.length > 1) {
+          spans.sort((x, y) => x[0] - y[0] || y[1] - x[1]);
+          let end = -1;
+          spans = spans.filter(([a, z]) => (a >= end ? ((end = z), true) : false));
+        }
+      } else {
+        for (let k = t.indexOf(find.q); k !== -1; k = t.indexOf(find.q, k + find.q.length)) spans.push([k, k + find.q.length]);
+      }
+      if (findOpts.talk && spans.length) {
+        const tm = talkMask(t);
+        spans = spans.filter(([a]) => (tm[a] === 1) === (findOpts.talk === 1));
+      }
+      for (const [a, z] of spans) find.matches.push({ s: starts[i] + a, e: starts[i] + z, i });
+    }
   }
   function paintFind() {
     if (!HL) return;
     const all = new Highlight(), current = new Highlight();
-    const n = find.q.length;
-    find.matches.forEach((m, j) => { if (j === find.index) current.add(rangeAt(m, m + n)); else if (j < 2000) all.add(rangeAt(m, m + n)); });
+    find.matches.forEach((m, j) => { if (j === find.index) current.add(rangeAt(m.s, m.e)); else if (j < 2000) all.add(rangeAt(m.s, m.e)); });
     CSS.highlights.set('find', all);
     CSS.highlights.set('find-current', current);
   }
   function clearFindPaint() { if (HL) { CSS.highlights.delete('find'); CSS.highlights.delete('find-current'); } }
   function showFindCount() {
-    $('#findCount').textContent = !find.q ? '' : !find.matches.length ? '見つかりません' : find.index >= 0 ? `${find.index + 1} / ${find.matches.length}件` : `${find.matches.length}件`;
+    const n = find.matches.length;
+    let t = '';
+    if (find.error) t = find.error;
+    else if (find.ai ? find.aiQ : find.q) t = !n ? (find.ai && aiBusy ? '' : '見つかりません') : find.index >= 0 ? `${find.index + 1} / ${n}件` : `${n}件`;
+    $('#findCount').textContent = t;
+    drawFindMap();
+    if (panel === 'search') syncSearchList();
   }
   function revealMatch() {
     const m = find.matches[find.index];
-    if (m == null) return;
+    if (!m) return;
     if (viewMode !== 'edit') setView('edit');
-    if (HL) scrollToRange(rangeAt(m, m + find.q.length));
-    else { setSel(m, m + find.q.length); findArmed = true; }
+    if (HL) scrollToRange(rangeAt(m.s, m.e));
+    else { setSel(m.s, m.e); findArmed = true; }
   }
   function updateFind({ from = lastSel.start, scroll = true } = {}) {
     if (findbar.hidden) return;
+    if (find.ai) {
+      relocateAi();
+      find.index = Math.min(find.index, find.matches.length - 1);
+      paintFind();
+      showFindCount();
+      return;
+    }
     computeMatches();
-    find.index = find.matches.findIndex(m => m >= from);
+    find.index = find.matches.findIndex(m => m.s >= from);
     if (find.index < 0 && find.matches.length) find.index = 0;
     paintFind();
     showFindCount();
@@ -2277,7 +2466,7 @@ body.ios-vcaret #editor { caret-color: transparent; }
   }
   function findStep(dir) {
     if (findbar.hidden) { openFind(); return; }
-    if (find.q !== $('#findQ').value) updateFind({ scroll: false });
+    if (!find.ai && find.q !== $('#findQ').value) updateFind({ scroll: false });
     const n = find.matches.length;
     if (!n) { showFindCount(); return; }
     find.index = find.index < 0 ? (dir > 0 ? 0 : n - 1) : (find.index + dir + n) % n;
@@ -2285,30 +2474,48 @@ body.ios-vcaret #editor { caret-color: transparent; }
     showFindCount();
     revealMatch();
   }
+  function renderOpts() {
+    $('#optFuzzy').setAttribute('aria-pressed', String(findOpts.fuzzy));
+    $('#optRegex').setAttribute('aria-pressed', String(findOpts.regex));
+    $('#optChapter').setAttribute('aria-pressed', String(findOpts.chapter));
+    $('#optTalk').setAttribute('aria-pressed', String(findOpts.talk === 1));
+    $('#optNarr').setAttribute('aria-pressed', String(findOpts.talk === 2));
+  }
+  function setFindOpt(key, value) {
+    findOpts[key] = value;
+    try { localStorage.setItem(FIND_KEY, JSON.stringify(findOpts)); } catch { /* not kept */ }
+    renderOpts();
+    if (!find.ai) updateFind({ scroll: false });
+    else if (panel === 'search') syncSearchList();
+  }
   function openFind() {
     findbar.hidden = false;
     $('#btnFind').setAttribute('aria-pressed', 'true');
-    const s = getSel() || lastSel;
-    const sel = plainText().slice(s.start, s.end);
     const q = $('#findQ');
-    if (sel && !sel.includes('\n') && sel.length <= 50) q.value = sel;
+    if (!find.ai) {
+      const s = getSel() || lastSel;
+      const sel = plainText().slice(s.start, s.end);
+      if (sel && !sel.includes('\n') && sel.length <= 50) q.value = sel;
+    }
+    renderOpts();
     q.focus();
     q.select();
     updateFind({ scroll: false });
   }
   function closeFind() {
+    abortAi();
     const m = find.matches[find.index];
-    const n = find.q.length;
     findbar.hidden = true;
     findArmed = false;
     clearFindPaint();
     $('#btnFind').setAttribute('aria-pressed', 'false');
+    if (panel === 'search') openPanel(null);
     if (viewMode !== 'edit') return;
     if (isTouch) {
       // Leave the found spot marked instead of focusing it, so closing search also closes the keyboard.
       if (document.activeElement && document.activeElement !== editor) document.activeElement.blur();
-      if (m != null) reveal(m, m + n);
-    } else if (HL && m != null) setSel(m, m + n);
+      if (m) reveal(m.s, m.e);
+    } else if (HL && m) setSel(m.s, m.e);
     else setSel(lastSel.start, lastSel.end, { scroll: false });
   }
   function setReplace(on) {
@@ -2316,39 +2523,365 @@ body.ios-vcaret #editor { caret-color: transparent; }
     $('#btnReplace').setAttribute('aria-pressed', String(on));
     if (on) $('#replQ').focus();
   }
+  // With 正規表現, $1, $<name> and $& in the replacement take the matched parts.
+  function replacementFor(m, t) {
+    const r = $('#replQ').value;
+    if (!findOpts.regex || !r.includes('$')) return r;
+    try {
+      const re = new RegExp(find.q, 'uy' + (findOpts.fuzzy ? 'i' : ''));
+      re.lastIndex = m.s - starts[m.i];
+      const mm = re.exec(t);
+      if (!mm) return r;
+      return r.replace(/\$(\$|&|\d{1,2}|<([^>]*)>)/g, (all, x, name) => (x === '$' ? '$' : x === '&' ? mm[0] : name !== undefined ? (mm.groups?.[name] ?? '') : (mm[Number(x)] ?? '')));
+    } catch { return r; }
+  }
+
+  // Where the matches are in the whole manuscript: a strip that runs the way the text does (right to left
+  // in vertical writing), with a tick at each top-level heading. Tap it to jump to the nearest match.
+  function drawFindMap() {
+    const n = find.matches.length;
+    findMap.hidden = !n || findbar.hidden;
+    if (findMap.hidden) return;
+    const w = findMap.clientWidth, h = 14, dpr = window.devicePixelRatio || 1;
+    if (!w) return;
+    findMap.width = Math.round(w * dpr);
+    findMap.height = Math.round(h * dpr);
+    const g = findMap.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const css = getComputedStyle(document.documentElement);
+    const total = Math.max(1, plainLength()), rtl = state.settings.vertical;
+    const X = (pos) => { const r = 2 + Math.min(1, pos / total) * (w - 4); return Math.round(rtl ? w - r : r); };
+    g.fillStyle = css.getPropertyValue('--rule').trim() || '#d0d4dc';
+    g.fillRect(0, h / 2, w, 1);
+    let top = 9;
+    for (const b of blocks) if (b.level && b.level < top) top = b.level;
+    for (let i = 0; i < blocks.length; i++) if (blocks[i].level === top) g.fillRect(X(starts[i]), 2, 1, h - 4);
+    g.fillStyle = 'rgba(226, 150, 30, 0.85)';
+    for (const m of find.matches) g.fillRect(X(m.s) - 1, 3, 2, h - 6);
+    const cur = find.matches[find.index];
+    if (cur) { g.fillStyle = css.getPropertyValue('--ai').trim() || '#27457f'; g.fillRect(X(cur.s) - 1, 0, 3, h); }
+  }
+  findMap.addEventListener('pointerdown', (e) => {
+    if (!isTouch) e.preventDefault();
+    const r = findMap.getBoundingClientRect();
+    let x = (e.clientX - r.left - 2) / Math.max(1, r.width - 4);
+    if (state.settings.vertical) x = 1 - x;
+    const pos = Math.max(0, Math.min(1, x)) * plainLength();
+    let best = -1, d = Infinity;
+    find.matches.forEach((m, j) => { const dm = Math.abs(m.s - pos); if (dm < d) { d = dm; best = j; } });
+    if (best < 0) return;
+    find.index = best;
+    paintFind();
+    showFindCount();
+    revealMatch();
+  });
+  window.addEventListener('resize', () => { if (!findbar.hidden) drawFindMap(); });
+
+  // The list of matches, grouped by the heading they fall under (AI hits: best first, with the reason).
+  let searchKey = '';
+  function syncSearchList() {
+    const box = $('#searchList');
+    if (!box) return;
+    const key = [find.ai, find.ai ? find.aiQ : find.q, aiBusy, find.matches.length, state.updatedAt, find.error, findOpts.chapter, findOpts.talk, findOpts.fuzzy, findOpts.regex].join('|');
+    if (key !== searchKey) { searchKey = key; renderSearchList(); return; }
+    for (const b of box.querySelectorAll('.hit.is-current')) b.classList.remove('is-current');
+    const cur = box.querySelector(`.hit[data-k="${find.index}"]`);
+    if (cur) { cur.classList.add('is-current'); cur.scrollIntoView({ block: 'nearest' }); }
+  }
+  function renderSearchList() {
+    const box = $('#searchList');
+    if (!box) return;
+    box.textContent = '';
+    const n = find.matches.length;
+    const scope = findOpts.chapter ? chapterSpan().label : '原稿全体';
+    const filter = !find.ai && findOpts.talk ? (findOpts.talk === 1 ? '・会話' : '・地の文') : '';
+    $('#searchSummary').textContent = find.ai
+      ? (!find.aiQ ? '探したい場面や内容を文章で書いて Enter を押すと、AI が原稿を読んで探します。' : aiBusy ? `AI が${scope}を読んで探しています…（${n}件）` : `「${find.aiQ}」に合う箇所 ${n}件（${scope}・合う順）`)
+      : (!find.q ? '検索する文字を入れてください。' : find.error || `「${find.q}」 ${n}件（${scope}${filter}）${n >= 5000 ? '　多すぎるため 5000件まで' : ''}`);
+    if (!n) return;
+    const text = plainText();
+    const headOf = new Int32Array(blocks.length);
+    for (let i = 0, h = -1; i < blocks.length; i++) { if (blocks[i].level) h = i; headOf[i] = h; }
+    const headName = (h) => (h >= 0 ? blocks[h].text || '無題の見出し' : '冒頭');
+    const item = (j) => {
+      const m = find.matches[j];
+      const ls = starts[m.i], le = ls + blocks[m.i].text.length;
+      const a = Math.max(ls, m.s - 16), z = Math.min(le, m.e + 16);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'hit' + (j === find.index ? ' is-current' : '');
+      b.dataset.k = j;
+      let html = find.ai ? `<span class="where">${esc(headName(headOf[m.i]))}</span>` + (m.why ? `<span class="msg why">${esc(m.why)}</span>` : '') : '';
+      html += `<span class="snip">${a > ls ? '…' : ''}${esc(text.slice(a, m.s))}<mark>${esc(text.slice(m.s, m.e))}</mark>${esc(text.slice(m.e, z))}${z < le ? '…' : ''}</span>`;
+      b.innerHTML = html;
+      return b;
+    };
+    const LIMIT = 400;
+    const list = document.createElement('div');
+    list.className = 'hits';
+    if (find.ai) for (let j = 0; j < n; j++) list.append(item(j));
+    else {
+      const counts = new Map();
+      for (const m of find.matches) counts.set(headOf[m.i], (counts.get(headOf[m.i]) || 0) + 1);
+      let last = -2;
+      for (let j = 0; j < n && j < LIMIT; j++) {
+        const h = headOf[find.matches[j].i];
+        if (h !== last) {
+          last = h;
+          const head = document.createElement('div');
+          head.className = 'search-head lv' + (h >= 0 ? blocks[h].level : 0);
+          head.innerHTML = `<span>${esc(headName(h))}</span><span>${counts.get(h)}件</span>`;
+          list.append(head);
+        }
+        list.append(item(j));
+      }
+      if (n > LIMIT) { const more = document.createElement('p'); more.className = 'muted'; more.textContent = `ほか ${n - LIMIT}件（「前へ」「次へ」で順に見られます）`; list.append(more); }
+    }
+    box.append(list);
+    box.onclick = (e) => {
+      const b = e.target.closest('.hit');
+      if (!b) return;
+      find.index = Number(b.dataset.k);
+      paintFind();
+      showFindCount();
+      const m = find.matches[find.index];
+      if (!m) return;
+      // On a phone the list covers the text: close it, show the spot, and offer a way back.
+      if (isTouch && document.body.classList.contains('mobile')) {
+        openPanel(null);
+        toast('該当箇所に移動しました', '一覧に戻る', () => openPanel('search'));
+        if (viewMode !== 'edit') setView('edit');
+        reveal(m.s, m.e, false);
+        return;
+      }
+      revealMatch();
+    };
+  }
+
+  // ---------- AI search: passages found by what happens in them, not by their words ----------
+  // Asks the viewer's own Claude (the page's `sample` capability), only when they press Enter. Long
+  // manuscripts go in several requests, two at a time; hits stream in as Claude writes them.
+  let sampleFn = null, aiCtl = null, aiBusy = false;
+  const AI_CHUNK = 150000;
+  if (window.claude && typeof window.claude.use === 'function') {
+    window.claude.use('sample').then((fn) => { if (fn) { sampleFn = fn; $('#optAi').hidden = false; } }).catch(() => {});
+  }
+  function setAiStatus(msg, busy = false) {
+    aiBusy = busy;
+    $('#aiStatus').hidden = !msg;
+    $('#aiMsg').textContent = msg;
+    $('#aiSpin').hidden = !busy;
+    $('#aiStop').hidden = !busy;
+  }
+  function abortAi() {
+    if (aiCtl) { aiCtl.abort(); aiCtl = null; }
+    if (aiBusy) setAiStatus('');
+  }
+  function setAiMode(on) {
+    abortAi();
+    find.ai = on;
+    find.matches = [];
+    find.index = -1;
+    find.aiQ = '';
+    find.error = '';
+    findbar.classList.toggle('ai', on);
+    $('#optAi').setAttribute('aria-pressed', String(on));
+    $('#findQ').placeholder = on ? 'どんな場面を探す？（例：主人公が栞を見つける場面）' : '検索（Enter で次へ）';
+    if (on) setReplace(false);
+    setAiStatus(on ? '言葉ではなく内容で探します。Enter を押すと原稿の文章を Claude に送り、読んで探してもらいます（あなたの Claude の利用枠を使います）' : '');
+    if (on) { clearFindPaint(); showFindCount(); } else updateFind({ scroll: false });
+    $('#findQ').focus();
+  }
+  const aiPrompt = (q, lines) => [
+    '次の小説の原稿から、問い合わせに合う箇所を探してください。',
+    '',
+    '問い合わせ：' + q,
+    '',
+    '答え方：',
+    '- 合う箇所1つにつき1行で、次の形の JSON だけを書く。ほかの文は書かない。',
+    '  {"p": 段落番号, "quote": "段落の本文から一字一句そのまま抜き出した、いちばん合う部分（40字まで）", "why": "合う理由（25字まで）", "score": 合う度合い（1〜10の整数）}',
+    '- 合う度合いの高い順に、多くても15件。合う箇所がなければ何も書かない。',
+    '- 段落番号は各行の先頭の [ ] の中の数。行頭の # は見出しの印で、本文ではない。',
+    '- quote は本文にあるとおりに書く（《》や｜などの記号もそのまま）。',
+    '',
+    '原稿：',
+    ...lines,
+  ].join('\n');
+  // Where Claude's quote is: in the paragraph it named, else in the nearest paragraph that has it; exactly,
+  // else ignoring variants (ruby marks, kana, width). Failing that, the start of the named paragraph.
+  function locateQuote(i, quote) {
+    const qf = foldText(quote, null).str;
+    const exact = (j) => { const k = blocks[j].text.indexOf(quote); return k >= 0 ? [k, k + quote.length] : null; };
+    const loose = (j) => {
+      const f = folded(blocks[j].text);
+      for (const F of [f.D, f.R]) { const k = F.str.indexOf(qf); if (k >= 0) return [F.from[k], F.to[k + qf.length - 1]]; }
+      return null;
+    };
+    for (const at of quote ? (qf ? [exact, loose] : [exact]) : []) {
+      const here = at(i);
+      if (here) return [i, here];
+      if (quote.length < 2) continue;
+      let best = -1, span = null;
+      for (let j = 0; j < blocks.length; j++) {
+        if (!blocks[j].text || (best >= 0 && Math.abs(j - i) >= Math.abs(best - i))) continue;
+        const x = at(j);
+        if (x) { best = j; span = x; }
+      }
+      if (span) return [best, span];
+    }
+    return [i, [0, Math.min(blocks[i].text.length, 40)]];
+  }
+  function addAiHit(line, ctl) {
+    if (aiCtl !== ctl || ctl.signal.aborted) return;
+    const src = line.trim().replace(/^[-*・]\s*/, '').replace(/,$/, '');
+    if (!src.startsWith('{')) return;
+    let o;
+    try { o = JSON.parse(src); } catch { return; }
+    const n = Number(o && o.p);
+    if (!Number.isInteger(n) || !blocks[n] || !blocks[n].text) return;
+    const [i, [a, z]] = locateQuote(n, String(o.quote || ''));
+    const t = blocks[i].text;
+    const hit = { s: starts[i] + a, e: starts[i] + z, i, why: String(o.why || '').slice(0, 80), score: Number(o.score) || 0, quote: t.slice(a, z) };
+    if (find.matches.some((m) => m.s < hit.e && hit.s < m.e)) return;
+    find.matches.push(hit);
+    find.matches.sort((x, y) => y.score - x.score || x.s - y.s);
+    paintFind();
+    showFindCount();
+  }
+  // After edits, AI hits follow their quoted text (or are dropped when it is gone).
+  function relocateAi() {
+    const text = plainText();
+    find.matches = find.matches.filter((h) => {
+      if (text.slice(h.s, h.e) === h.quote) return true;
+      if (!h.quote) return false;
+      const a = text.lastIndexOf(h.quote, h.s), b = text.indexOf(h.quote, h.s);
+      const k = a < 0 ? b : b < 0 ? a : h.s - a <= b - h.s ? a : b;
+      if (k < 0) return false;
+      h.s = k; h.e = k + h.quote.length; h.i = locate(k).i;
+      return true;
+    });
+  }
+  function aiErrorText(e) {
+    switch (e && e.code) {
+      case 'not_granted': case 'sampling_disabled': case 'not_declared': case 'capability_disabled': case 'capability_removed':
+        return 'この画面では AI 検索を使えません（許可されていないか、使えない設定です）';
+      case 'rate_limited': return 'AI の利用が上限に達したか、混み合っています。しばらくしてから試してください';
+      case 'session_expired': return 'Claude にもう一度ログインしてください';
+      case 'prompt_too_large': return '原稿が長すぎました。「この章」に絞って試してください';
+      case 'refused': return 'AI がこの問い合わせには答えませんでした。言い方を変えて試してください';
+      default: return 'AI との通信に失敗しました。もう一度試してください';
+    }
+  }
+  async function runAi() {
+    const q = $('#findQ').value.trim();
+    if (!q || !sampleFn) return;
+    abortAi();
+    const ctl = aiCtl = new AbortController();
+    let lo = 0, hi = blocks.length, label = '原稿全体';
+    if (findOpts.chapter) ({ lo, hi, label } = chapterSpan());
+    const enc = new TextEncoder(), chunks = [];
+    let cur = [], bytes = 0;
+    for (let i = lo; i < hi; i++) {
+      const b = blocks[i];
+      if (!b.text) continue;
+      let line = `[${i}] ${b.level ? '#'.repeat(b.level) + ' ' : ''}${b.text}`;
+      let n = enc.encode(line).length + 1;
+      if (n > AI_CHUNK) { line = line.slice(0, Math.floor(AI_CHUNK / 4)); n = enc.encode(line).length + 1; }
+      if (bytes + n > AI_CHUNK && cur.length) { chunks.push(cur); cur = []; bytes = 0; }
+      cur.push(line);
+      bytes += n;
+    }
+    if (cur.length) chunks.push(cur);
+    find.aiQ = q;
+    find.matches = [];
+    find.index = -1;
+    clearFindPaint();
+    if (!chunks.length) { aiCtl = null; setAiStatus('探す本文がありません'); showFindCount(); return; }
+    let done = 0, error = null, next = 0;
+    const progress = () => setAiStatus(`AI が${label}を読んで探しています${chunks.length > 1 ? `（${done} / ${chunks.length}）` : ''}…数十秒かかることがあります`, true);
+    progress();
+    showFindCount();
+    const ask = async (lines) => {
+      let pending = '';
+      const eat = (delta) => { const ls = (pending + delta).split('\n'); pending = ls.pop(); for (const l of ls) addAiHit(l, ctl); };
+      try { await sampleFn(aiPrompt(q, lines), { signal: ctl.signal, onText: ({ delta }) => eat(delta) }); }
+      catch (e) { if (!error && !(e && e.code === 'cancelled')) error = e || {}; }
+      if (pending) addAiHit(pending, ctl);
+      done++;
+      if (aiCtl === ctl && !error && !ctl.signal.aborted) progress();
+    };
+    const lane = async () => { while (next < chunks.length && !ctl.signal.aborted && !error) await ask(chunks[next++]); };
+    await Promise.all([lane(), lane()]);
+    if (aiCtl !== ctl) return;
+    aiCtl = null;
+    const n = find.matches.length;
+    const permanent = error && ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed'].includes(error.code);
+    if (permanent) {
+      sampleFn = null;
+      $('#optAi').hidden = true;
+      toast(aiErrorText(error));
+      setAiMode(false);
+      return;
+    }
+    if (error) setAiStatus(aiErrorText(error) + (n ? `（見つかった ${n}件は残しています）` : ''));
+    else if (ctl.signal.aborted) setAiStatus(n ? `途中で止めました（${n}件）` : '止めました');
+    else setAiStatus(n ? `AI が ${n}件見つけました（合う順）` : 'AI は合う箇所を見つけられませんでした。言い方を変えて試してください');
+    if (n) find.index = 0;
+    paintFind();
+    showFindCount();
+    if (n && !error && !ctl.signal.aborted) { revealMatch(); if (panel !== 'search') openPanel('search'); }
+  }
+
   $('#btnFind').addEventListener('click', () => (findbar.hidden ? openFind() : closeFind()));
   $('#findClose').addEventListener('click', closeFind);
   $('#btnReplace').addEventListener('click', () => setReplace($('#replRow').hidden));
-  $('#findQ').addEventListener('input', () => updateFind());
-  $('#findQ').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); } });
+  $('#btnFindList').addEventListener('click', () => openPanel(panel === 'search' ? null : 'search'));
+  $('#optAi').addEventListener('click', () => setAiMode(!find.ai));
+  $('#optFuzzy').addEventListener('click', () => setFindOpt('fuzzy', !findOpts.fuzzy));
+  $('#optRegex').addEventListener('click', () => setFindOpt('regex', !findOpts.regex));
+  $('#optChapter').addEventListener('click', () => setFindOpt('chapter', !findOpts.chapter));
+  $('#optTalk').addEventListener('click', () => setFindOpt('talk', findOpts.talk === 1 ? 0 : 1));
+  $('#optNarr').addEventListener('click', () => setFindOpt('talk', findOpts.talk === 2 ? 0 : 2));
+  $('#aiStop').addEventListener('click', () => { if (aiCtl) aiCtl.abort(); });
+  $('#findQ').addEventListener('input', () => {
+    if (find.ai) return;
+    clearTimeout(findTimer);
+    findTimer = setTimeout(() => updateFind(), plainLength() > 30000 ? 120 : 0);
+  });
+  $('#findQ').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    const q = $('#findQ').value.trim();
+    if (find.ai && q && (q !== find.aiQ || (!aiBusy && !find.matches.length))) { runAi(); return; }
+    findStep(e.shiftKey ? -1 : 1);
+  });
   $('#findNext').addEventListener('click', () => findStep(1));
   $('#findPrev').addEventListener('click', () => findStep(-1));
   $('#replOne').addEventListener('click', () => {
     if (find.q !== $('#findQ').value) updateFind({ scroll: false });
     const m = find.matches[find.index];
-    if (m == null) { findStep(1); return; }
-    const r = $('#replQ').value;
-    applyEdit(m, m + find.q.length, r, { kind: 'replace', focus: !HL, select: !HL });
-    updateFind({ from: m + r.length });
+    if (!m) { findStep(1); return; }
+    const r = replacementFor(m, blocks[m.i].text);
+    applyEdit(m.s, m.e, r, { kind: 'replace', focus: !HL, select: !HL });
+    updateFind({ from: m.s + r.length });
   });
   $('#replAll').addEventListener('click', () => {
-    const q = $('#findQ').value, r = $('#replQ').value;
-    if (!q) return;
-    let count = 0;
-    const nb = blocks.map(b => {
-      if (!b.text.includes(q)) return b;
-      const parts = b.text.split(q);
-      count += parts.length - 1;
-      return { level: b.level, text: parts.join(r) };
-    });
-    if (!count) { toast('見つかりませんでした'); return; }
+    if (!$('#findQ').value) return;
+    updateFind({ scroll: false });
+    const ms = find.matches;
+    if (find.error || !ms.length) { toast('見つかりませんでした'); return; }
+    const nb = blocks.map(b => ({ level: b.level, text: b.text }));
+    for (let j = ms.length - 1; j >= 0; j--) {
+      const m = ms[j], t = nb[m.i].text, a = m.s - starts[m.i], z = m.e - starts[m.i];
+      nb[m.i].text = t.slice(0, a) + replacementFor(m, blocks[m.i].text) + t.slice(z);
+    }
     const before = lastSel;
     blocks = nb;
     renderEditor();
     commit('replace', before);
     contentChanged();
     updateFind({ scroll: false });
-    toast(`${count}件置換しました（Ctrl/⌘+Z で元に戻せます）`);
+    toast(`${ms.length}件置換しました（Ctrl/⌘+Z で元に戻せます）`);
   });
 
   // ---------- notation check ----------
