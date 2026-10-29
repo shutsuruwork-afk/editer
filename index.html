@@ -346,6 +346,11 @@ body.mobile.kb .stage { align-items: flex-start; }
 body.mobile.kb .vertical .writing { height: min(var(--edit-h, 100%), calc(var(--line-chars) * 1em + 2em + 18px)); }
 body.mobile.kb .horizontal .writing { height: var(--edit-h, 100%); }
 body.mobile.kb .hint { display: none; }
+.kb-grip {
+  position: absolute; z-index: 4; left: 50%; width: 96px; height: 24px; margin-left: -48px;
+  touch-action: none; cursor: ns-resize; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.kb-grip::before { content: ""; position: absolute; left: 30px; right: 30px; top: 10px; height: 4px; border-radius: 2px; background: var(--ink-soft); opacity: 0.45; }
 body.mobile .find-row { gap: 4px; }
 body.mobile .find-row input { flex-basis: 110px; max-width: none; }
 body.mobile .find-row .tbtn { padding: 0 8px; }
@@ -503,6 +508,7 @@ body.ios-vcaret #editor { caret-color: transparent; }
       <div id="editor" class="writing doc" contenteditable="true" spellcheck="false" role="textbox" aria-multiline="true" aria-label="本文" autocapitalize="off" autocorrect="off" translate="no"></div>
       <div id="preview" class="writing doc" hidden tabindex="0" aria-label="プレビュー"></div>
       <div id="fakeCaret" class="fake-caret" aria-hidden="true" hidden></div>
+      <div id="kbGrip" class="kb-grip" title="ドラッグしてキーボードの上に合わせる" aria-hidden="true" hidden></div>
       <button type="button" class="exit-preview m-only" id="btnExitPreview" hidden>プレビューを終了</button>
       <div class="hint" id="sampleHint" hidden>
         <span>見本の原稿です。行を選んでバーの「本文」を「大見出し」などに変えると、☰ の目次に章として並びます。</span>
@@ -2004,11 +2010,28 @@ body.ios-vcaret #editor { caret-color: transparent; }
   // embedded in a frame), so unless the browser reports it, assume it covers the lower part of the screen.
   const vv = window.visualViewport;
   let baseW = window.innerWidth, baseH = window.innerHeight;
+  // Inside an app the page cannot see the keyboard. Then the text ends where the grip under it was last
+  // dragged to on this device, or at an estimate: iPhone keyboards take about 40% of the screen height,
+  // and such frames usually stop at the home-indicator strip, which the keyboard also covers.
+  const KB_KEY = 'genkocho/kb';
+  const orient = () => (window.innerWidth > window.innerHeight ? 'l' : 'p');
+  function savedCover() {
+    try { const v = JSON.parse(localStorage.getItem(KB_KEY) || '{}')[orient()]; return typeof v === 'number' ? v : 0; } catch { return 0; }
+  }
+  function saveCover(px) {
+    try { const o = JSON.parse(localStorage.getItem(KB_KEY) || '{}'); o[orient()] = px; localStorage.setItem(KB_KEY, JSON.stringify(o)); } catch { /* nothing is kept in this browser */ }
+  }
+  let kbSeen = false;
   function keyboardTop() {
     const h = window.innerHeight;
+    kbSeen = true;
     if (h < baseH - 120) return h;
     if (vv && vv.height < h - 120) return vv.offsetTop + vv.height;
-    return Math.max(h * 0.45, h - 400);
+    kbSeen = false;
+    const saved = savedCover();
+    if (saved) return h - Math.min(saved, h - 160);
+    const sh = Math.max(screen.width, screen.height);
+    return h - Math.min(Math.round(sh * 0.395) - (sh >= 800 ? 34 : 0), h * 0.55);
   }
   // The text is never resized or scrolled while a conversion is open (the iPhone may drop or misplace
   // it); that waits until the conversion ends.
@@ -2018,17 +2041,49 @@ body.ios-vcaret #editor { caret-color: transparent; }
     if (composing) { fitLater = true; return; }
     const on = isTouch && document.body.classList.contains('mobile') && document.activeElement === editor;
     const was = document.body.classList.contains('kb');
-    if (on) {
-      const h = Math.max(140, Math.round(keyboardTop() - stage.getBoundingClientRect().top - 8));
-      document.documentElement.style.setProperty('--edit-h', h + 'px');
-    }
+    if (on) setEditH(keyboardTop() - stage.getBoundingClientRect().top - 8);
     document.body.classList.toggle('kb', on);
+    placeGrip();
     if (on !== was) {
       // The text reflows; bring the caret back into view (the tap may place it a moment later).
       kbSettleUntil = Date.now() + 700;
       requestAnimationFrame(revealCaret);
     }
   }
+  let editH = 0;
+  function setEditH(px) {
+    editH = Math.max(140, Math.round(px));
+    document.documentElement.style.setProperty('--edit-h', editH + 'px');
+  }
+  // The grip under the text while the keyboard is open (only when the page cannot see the keyboard, and
+  // the line length setting does not already make the text shorter). Dragging it is remembered here.
+  const grip = $('#kbGrip');
+  function placeGrip() {
+    const r = editor.getBoundingClientRect();
+    const show = document.body.classList.contains('kb') && !kbSeen && viewMode === 'edit' && Math.abs(r.height - editH) < 2;
+    grip.hidden = !show;
+    if (show) grip.style.top = Math.round(r.bottom - stage.getBoundingClientRect().top - 12) + 'px';
+  }
+  grip.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    const y0 = e.clientY, h0 = editH, top = stage.getBoundingClientRect().top;
+    const max = window.innerHeight - top - 8;
+    let y = y0, queued = false;
+    const apply = () => { queued = false; setEditH(Math.min(max, h0 + y - y0)); placeGrip(); };
+    const move = (ev) => { y = ev.clientY; if (!queued) { queued = true; requestAnimationFrame(apply); } };
+    const end = () => {
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', end);
+      grip.removeEventListener('pointercancel', end);
+      apply();
+      if (editH !== h0) saveCover(Math.round(window.innerHeight - (top + editH + 8)));
+      revealCaret();
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', end);
+    grip.addEventListener('pointercancel', end);
+  });
   let kbSettleUntil = 0;
   function revealCaret() {
     if (composing) return;
