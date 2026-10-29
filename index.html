@@ -2,24 +2,24 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>原稿帳</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&family=Shippori+Mincho+B1:wght@700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <style>
-/* Layout: a writing desk in three panes (chapters | manuscript sheet | tools) with a status line at the foot */
+/* Layout: one slim bar on top, the manuscript fills everything else; chapters slide in from the left, tools open on the right only when asked */
 :root {
-  --paper: #f5f6f9;
-  --desk: #eaedf3;
-  --sheet: #fdfdfc;
+  --sheet: #fcfcfb;
+  --paper: #f3f5f8;
+  --hover: #eaeef4;
   --ink: #1c2233;
-  --ink-soft: #5b6579;
-  --rule: #d3d9e4;
+  --ink-soft: #5d6679;
+  --rule: #dde2ea;
   --ai: #27457f;
-  --ai-soft: #dfe6f3;
+  --ai-soft: #e2e8f4;
   --shu: #b6412a;
-  --shu-soft: #f5e2dc;
-  --ok: #2c6f4f;
+  --shu-soft: #f6e4de;
+  --ok: #2c7a55;
   --f-body: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP", serif;
   --f-ui: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
   --f-display: "Shippori Mincho B1", "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
@@ -30,166 +30,203 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #12151c; --desk: #171b24; --sheet: #1c2029; --ink: #e5e2da; --ink-soft: #9ba3b4;
-    --rule: #2b3140; --ai: #95ade2; --ai-soft: #24304a; --shu: #e47c62; --shu-soft: #3b2621; --ok: #79c6a1;
+    --sheet: #15181f; --paper: #1b1f28; --hover: #252a36; --ink: #e5e2da; --ink-soft: #9ca3b3;
+    --rule: #2c3240; --ai: #9bb2e4; --ai-soft: #26304a; --shu: #e47c62; --shu-soft: #3b2621; --ok: #79c6a1;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --paper: #12151c; --desk: #171b24; --sheet: #1c2029; --ink: #e5e2da; --ink-soft: #9ba3b4;
-  --rule: #2b3140; --ai: #95ade2; --ai-soft: #24304a; --shu: #e47c62; --shu-soft: #3b2621; --ok: #79c6a1;
+  --sheet: #15181f; --paper: #1b1f28; --hover: #252a36; --ink: #e5e2da; --ink-soft: #9ca3b3;
+  --rule: #2c3240; --ai: #9bb2e4; --ai-soft: #26304a; --shu: #e47c62; --shu-soft: #3b2621; --ok: #79c6a1;
   color-scheme: dark;
 }
 
 html { box-sizing: border-box; height: 100%; }
 *, *::before, *::after { box-sizing: inherit; }
+[hidden] { display: none !important; }
 body {
   height: 100%; margin: 0; overflow: hidden;
-  background: var(--desk); color: var(--ink);
+  background: var(--sheet); color: var(--ink);
   font-family: var(--f-ui); font-size: 14px; line-height: 1.6;
 }
-[hidden] { display: none !important; }
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
+svg { display: block; }
 
 #app {
   height: 100%;
-  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr);
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
+#bar { grid-row: 1; }
+#findbar { grid-row: 2; }
+.main { grid-row: 3; }
 
-/* ---------- top bar ---------- */
+/* ---------- the one bar ---------- */
 .bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
-  padding-block: 10px; border-bottom: 1px solid var(--rule);
+  position: relative; z-index: 20;
+  display: grid; align-items: center; gap: 4px 10px;
+  grid-template-columns: auto minmax(120px, 1fr) auto auto;
+  grid-template-areas: "drawer title tools end";
+  padding-block: 6px; border-bottom: 1px solid var(--rule);
+  transition: opacity 0.35s ease;
 }
-.brand { display: flex; align-items: center; gap: 8px; flex: none; }
-.seal {
-  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 4px;
-  background: var(--shu); color: var(--sheet);
-  font-family: var(--f-display); font-size: 16px; line-height: 1;
-}
-.brand-name { font-family: var(--f-display); font-size: 17px; letter-spacing: 0.08em; }
-.work-title {
-  flex: 1 1 200px; min-width: 0;
-  border: 1px solid transparent; border-radius: 6px; background: transparent;
-  padding: 4px 8px; font-family: var(--f-body); font-size: 16px;
-}
-.work-title:hover { border-color: var(--rule); }
-.work-title:focus { border-color: var(--ai); background: var(--sheet); outline: none; }
-.tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
-.btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 10px; border: 1px solid var(--rule); border-radius: 6px;
-  background: var(--paper); color: var(--ink); font-size: 13px; cursor: pointer; white-space: nowrap;
-}
-.btn:hover { border-color: var(--ai); }
-.btn[aria-pressed="true"] { background: var(--ai); border-color: var(--ai); color: var(--sheet); }
-.btn.ghost { background: transparent; border-color: transparent; }
-.btn.ghost:hover { background: var(--ai-soft); }
-.btn.danger { color: var(--shu); border-color: var(--shu); background: transparent; }
-.btn.danger.solid { background: var(--shu); color: var(--sheet); }
-.btn:disabled { opacity: 0.45; cursor: default; }
-.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 7px; padding: 2px; background: var(--paper); }
-.seg .btn { border: 0; background: transparent; padding: 4px 10px; }
-.seg .btn[aria-pressed="true"] { background: var(--ai); color: var(--sheet); }
-
-/* ---------- main panes ---------- */
-.main { display: grid; grid-template-columns: 220px minmax(0, 1fr) auto; min-height: 0; }
-body.hide-sidebar .main { grid-template-columns: 0 minmax(0, 1fr) auto; }
-body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
-
-#sidebar {
-  display: flex; flex-direction: column; gap: 12px;
-  min-height: 0; overflow: auto; padding: 14px 14px 14px 0; border-right: 1px solid var(--rule);
-}
-.label { font-size: 11px; letter-spacing: 0.12em; color: var(--ink-soft); font-weight: 500; }
-.sample-note {
-  font-size: 12px; color: var(--ink-soft); background: var(--paper);
-  border: 1px dashed var(--rule); border-radius: 6px; padding: 8px 10px;
-}
-.ch-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.ch-item { border-radius: 6px; }
-.ch-item.is-current { background: var(--ai-soft); }
-.ch-open {
-  width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
-  padding: 7px 8px; border: 0; background: transparent; text-align: left; cursor: pointer; border-radius: 6px;
-}
-.ch-open:hover { background: var(--ai-soft); }
-.ch-name { font-family: var(--f-body); font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.is-current .ch-name { font-weight: 600; }
-.ch-count { font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; flex: none; }
-.ch-actions { display: flex; gap: 4px; padding: 0 6px 6px; flex-wrap: wrap; }
-.ch-actions .btn { padding: 2px 8px; font-size: 12px; }
-.ch-confirm { padding: 0 8px 8px; font-size: 12px; color: var(--shu); display: flex; flex-direction: column; gap: 6px; }
-.ch-confirm div { display: flex; gap: 6px; }
-.work-total { margin-top: auto; font-size: 12px; color: var(--ink-soft); border-top: 1px solid var(--rule); padding-top: 10px; font-variant-numeric: tabular-nums; }
-.work-total strong { color: var(--ink); font-size: 15px; font-weight: 500; }
-
-.desk { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 10px; min-width: 0; min-height: 0; padding: 14px 0 14px 16px; }
+body.typing .bar { opacity: 0.3; }
+body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
+#btnDrawer { grid-area: drawer; }
 .ch-title {
-  width: 100%; border: 0; border-bottom: 1px solid transparent; background: transparent;
-  font-family: var(--f-display); font-size: 20px; padding: 2px 0;
+  grid-area: title; min-width: 0; height: 34px;
+  border: 1px solid transparent; border-radius: 6px; background: transparent;
+  padding: 0 8px; font-family: var(--f-display); font-size: 16px; text-overflow: ellipsis;
 }
-.ch-title:hover { border-bottom-color: var(--rule); }
-.ch-title:focus { outline: none; border-bottom-color: var(--ai); }
-.assist { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.assist .btn { font-family: var(--f-body); }
-.assist .hint { font-size: 12px; color: var(--ink-soft); }
+.ch-title:hover { border-color: var(--rule); }
+.ch-title:focus { outline: none; border-color: var(--ai); background: var(--paper); }
+.bar-tools { grid-area: tools; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.bar-end { grid-area: end; position: relative; display: flex; align-items: center; gap: 2px; }
+.sep { flex: none; width: 1px; height: 18px; background: var(--rule); margin: 0 4px; }
 
-.sheet {
-  min-height: 0; display: flex; align-items: center; justify-content: center;
-  background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px;
-  box-shadow: 0 1px 2px rgb(20 30 60 / 0.06), 0 8px 24px -12px rgb(20 30 60 / 0.18);
-  overflow: hidden;
+.tbtn {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 10px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--ink);
+  font-size: 13px; cursor: pointer; white-space: nowrap;
 }
-.sheet:focus-within { border-color: var(--ai); }
+.tbtn:hover { background: var(--hover); }
+.tbtn[aria-pressed="true"] { background: var(--ai-soft); color: var(--ai); font-weight: 500; }
+.tbtn:disabled { opacity: 0.35; cursor: default; background: transparent; }
+.tbtn.glyph { font-family: var(--f-body); font-size: 14px; }
+.tbtn svg { width: 16px; height: 16px; }
+.icon {
+  flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--ink-soft); cursor: pointer;
+}
+.icon:hover { background: var(--hover); color: var(--ink); }
+.icon svg { width: 20px; height: 20px; }
+.seg { flex: none; display: inline-flex; padding: 2px; border-radius: 8px; background: var(--hover); }
+.seg .tbtn { height: 28px; padding: 0 10px; }
+.seg .tbtn[aria-pressed="true"] { background: var(--sheet); color: var(--ink); box-shadow: 0 1px 2px rgb(10 20 40 / 0.14); }
+
+.count {
+  display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px;
+  border: 0; border-radius: 6px; background: transparent; cursor: pointer;
+  font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.count:hover { background: var(--hover); }
+.count b { color: var(--ink); font-size: 14px; font-weight: 500; }
+.cnt-sel { color: var(--ai); }
+.cnt-sel b { color: var(--ai); }
+.save { display: inline-flex; align-items: center; gap: 5px; }
+.save .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.save.busy .dot { background: var(--ink-soft); }
+.save.warn { color: var(--shu); }
+.save.warn .dot { background: var(--shu); }
+
+.goal-line { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; pointer-events: none; }
+.goal-line i { display: block; height: 100%; width: 0; background: var(--ai); opacity: 0.55; transition: width 0.3s ease; }
+.goal-line.done i { background: var(--ok); opacity: 0.8; }
+
+/* ---------- popovers ---------- */
+.pop {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 30;
+  min-width: 220px; max-width: calc(100vw - 32px);
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 10px;
+  box-shadow: 0 14px 36px -14px rgb(10 20 40 / 0.4); padding: 6px;
+}
+.menu button {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px; width: 100%;
+  padding: 9px 10px; border: 0; border-radius: 6px; background: transparent; text-align: left;
+  font-size: 13px; cursor: pointer;
+}
+.menu button:hover { background: var(--hover); }
+.stats { width: 270px; padding: 14px; display: flex; flex-direction: column; gap: 12px; font-variant-numeric: tabular-nums; }
+.stat { display: flex; flex-direction: column; gap: 1px; }
+.stat-label { font-size: 11px; letter-spacing: 0.08em; color: var(--ink-soft); }
+.stat-main { font-size: 13px; }
+.stat-main b { font-size: 20px; font-weight: 500; }
+.stat-sub { font-size: 12px; color: var(--ink-soft); }
+.goal-set { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
+.goal-set input { width: 90px; height: 28px; padding: 0 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet); }
+.goal-bar { height: 4px; border-radius: 2px; background: var(--rule); overflow: hidden; }
+.goal-bar i { display: block; height: 100%; width: 0; background: var(--ai); }
+.goal-bar.done i { background: var(--ok); }
+.save-detail { margin: 0; font-size: 12px; color: var(--ink-soft); border-top: 1px solid var(--rule); padding-top: 10px; }
+
+/* ---------- find bar ---------- */
+.findbar { display: flex; flex-direction: column; gap: 6px; padding-block: 8px; border-bottom: 1px solid var(--rule); }
+.find-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.find-row input {
+  flex: 1 1 200px; min-width: 0; max-width: 340px; height: 32px; padding: 0 10px;
+  border: 1px solid var(--rule); border-radius: 6px; background: var(--paper);
+}
+.find-row input:focus { outline: none; border-color: var(--ai); }
+.find-count { min-width: 5.5em; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.find-other { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
+.chip { border: 1px solid var(--rule); border-radius: 999px; padding: 2px 10px; background: transparent; font-size: 12px; cursor: pointer; }
+.chip:hover { border-color: var(--ai); color: var(--ai); }
+
+/* ---------- writing area ---------- */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 0; }
+.stage { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; }
 .writing {
   margin: 0; border: 0; outline: none; resize: none; background: transparent; color: var(--ink);
-  font-family: var(--f-text); font-size: var(--fs); line-height: var(--lh);
-  padding: 1.5em; overflow: auto; font-kerning: none;
+  font-family: var(--f-text); font-size: var(--fs); line-height: var(--lh); font-kerning: none;
+  overflow: auto;
 }
 .vertical .writing {
-  writing-mode: vertical-rl;
+  writing-mode: vertical-rl; padding: 1.5em 2em;
   width: 100%; height: min(100%, calc(var(--line-chars) * 1em + 3em + 18px));
 }
 .horizontal .writing {
-  writing-mode: horizontal-tb;
-  height: 100%; width: min(100%, calc(var(--line-chars) * 1em + 3em + 18px));
+  writing-mode: horizontal-tb; padding: 2em;
+  height: 100%; width: min(100%, calc(var(--line-chars) * 1em + 4em + 18px));
 }
 .writing::placeholder { color: var(--ink-soft); }
 #preview p { margin: 0; }
-#preview .pv-title { font-family: var(--f-display); font-size: 1.25em; font-weight: 700; margin: 0; }
+#preview .pv-title { margin: 0; font-family: var(--f-display); font-size: 1.25em; font-weight: 700; }
 .vertical #preview .pv-title { margin-left: 2em; margin-top: 2em; }
 .horizontal #preview .pv-title { margin-bottom: 1.5em; }
 #preview rt { font-size: 0.5em; font-family: var(--f-text); }
 #preview .bouten { font-style: normal; -webkit-text-emphasis: sesame; text-emphasis: sesame; }
 #preview .tcy { -webkit-text-combine: horizontal; text-combine-upright: all; }
 
-/* ---------- right panel ---------- */
+.hint {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px; width: max-content; max-width: calc(100% - 16px);
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 5px 4px 5px 12px; font-size: 12px; color: var(--ink-soft);
+  box-shadow: 0 8px 20px -12px rgb(10 20 40 / 0.35);
+}
+.hint .icon { width: 26px; height: 26px; }
+.hint .icon svg { width: 14px; height: 14px; }
+
+/* ---------- side panel (check / settings / file) ---------- */
 #panel {
-  width: 300px; min-height: 0; overflow: auto;
-  padding: 14px 0 14px 16px; margin-left: 16px; border-left: 1px solid var(--rule);
+  width: 320px; min-height: 0; overflow: auto;
+  border-left: 1px solid var(--rule); padding: 14px 0 14px 16px; margin-left: 12px;
   display: flex; flex-direction: column; gap: 14px;
 }
 .panel-head { display: flex; justify-content: space-between; align-items: center; }
 .panel-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field > span { font-size: 12px; color: var(--ink-soft); }
-.field input[type="text"], .field input[type="number"], .field select {
-  width: 100%; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet);
+.field select {
+  width: 100%; height: 32px; padding: 0 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet);
 }
 .field input[type="range"] { width: 100%; accent-color: var(--ai); }
 .check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; }
 .check input { accent-color: var(--ai); margin-top: 4px; }
 .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.muted { color: var(--ink-soft); font-size: 12px; margin: 0; }
-.count-badge { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--ink-soft); }
+.btn {
+  display: inline-flex; align-items: center; height: 32px; padding: 0 12px;
+  border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet);
+  font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.btn:hover { border-color: var(--ai); }
+.btn.danger { background: var(--shu); border-color: var(--shu); color: var(--sheet); }
+.muted { margin: 0; font-size: 12px; color: var(--ink-soft); }
 .hits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .hit {
-  width: 100%; text-align: left; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper);
+  width: 100%; text-align: left; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet);
   padding: 7px 9px; cursor: pointer; display: flex; flex-direction: column; gap: 2px;
 }
 .hit:hover { border-color: var(--ai); }
@@ -198,166 +235,240 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
 .hit .snip { font-family: var(--f-body); font-size: 13px; white-space: pre-wrap; word-break: break-all; }
 .hit .snip mark { background: var(--shu-soft); color: var(--shu); border-radius: 2px; }
 .ok-note { color: var(--ok); font-size: 13px; }
-.notation { font-size: 12px; border-collapse: collapse; width: 100%; }
-.notation td { padding: 4px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
-.notation td:first-child { font-family: var(--f-body); white-space: nowrap; padding-right: 10px; }
+.table { font-size: 12px; border-collapse: collapse; width: 100%; }
+.table td { padding: 4px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.table td:first-child { white-space: nowrap; padding-right: 12px; }
+.table .mono { font-family: var(--f-body); }
+.table kbd { font-family: var(--f-ui); }
 .confirm-box { border: 1px solid var(--shu); background: var(--shu-soft); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 
-/* ---------- status line ---------- */
-.status {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px;
-  padding-block: 8px; border-top: 1px solid var(--rule);
-  font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums;
+/* ---------- chapters drawer ---------- */
+.drawer {
+  position: fixed; z-index: 40; top: 0; bottom: 0; left: 0; width: min(86vw, 320px);
+  display: flex; flex-direction: column; gap: 14px; overflow: auto;
+  background: var(--paper); border-right: 1px solid var(--rule); box-shadow: 10px 0 30px -18px rgb(10 20 40 / 0.45);
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  transform: translateX(-104%); visibility: hidden;
+  transition: transform 0.22s ease, visibility 0s linear 0.22s;
 }
-.status b { color: var(--ink); font-weight: 500; font-size: 13px; }
-.goal { display: inline-flex; align-items: center; gap: 8px; }
-.goal-bar { width: 80px; height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; }
-.goal-bar i { display: block; height: 100%; width: 0; background: var(--ai); }
-.goal.done .goal-bar i { background: var(--ok); }
-.save-state { margin-left: auto; }
-.save-state.warn { color: var(--shu); }
+body.drawer-open .drawer { transform: none; visibility: visible; transition: transform 0.22s ease; }
+.scrim { position: fixed; inset: 0; z-index: 35; background: rgb(10 14 24 / 0.28); }
+.drawer-head { display: flex; align-items: center; gap: 8px; }
+.seal {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 4px;
+  background: var(--shu); color: var(--sheet); font-family: var(--f-display); font-size: 16px; line-height: 1;
+}
+.brand { font-family: var(--f-display); font-size: 16px; letter-spacing: 0.08em; flex: 1; }
+.work-title {
+  width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--sheet); font-family: var(--f-body); font-size: 15px;
+}
+.work-title:focus { outline: none; border-color: var(--ai); }
+.label { font-size: 11px; letter-spacing: 0.12em; color: var(--ink-soft); font-weight: 500; }
+.ch-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.ch-item { border-radius: 6px; }
+.ch-item.is-current { background: var(--ai-soft); }
+.ch-open {
+  width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  padding: 8px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer;
+}
+.ch-open:hover { background: var(--hover); }
+.is-current .ch-open:hover { background: transparent; }
+.ch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--f-body); font-size: 14px; }
+.is-current .ch-name { font-weight: 600; }
+.ch-count { flex: none; font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.ch-actions { display: flex; gap: 2px; padding: 0 4px 4px; }
+.ch-actions .tbtn { height: 26px; padding: 0 8px; font-size: 12px; color: var(--ink-soft); }
+.add-ch { justify-content: center; border: 1px dashed var(--rule); height: 36px; }
+.work-total { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.work-total b { color: var(--ink); font-size: 15px; font-weight: 500; }
 
+/* ---------- toast ---------- */
 .toast {
-  position: fixed; left: 50%; transform: translateX(-50%);
-  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-  background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: 8px; font-size: 13px;
-  max-width: calc(100% - 32px); z-index: 50;
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100% - 32px);
+  background: var(--ink); color: var(--sheet); padding: 8px 14px; border-radius: 8px; font-size: 13px;
 }
-.scrim { display: none; }
+.toast button { border: 0; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; padding: 2px 4px; }
 
-/* ---------- phone ---------- */
-@media (max-width: 760px) {
-  .main, body.hide-sidebar .main { grid-template-columns: minmax(0, 1fr); }
-  .desk { padding-left: 0; }
-  .brand-name { display: none; }
-  .tools { width: 100%; min-width: 0; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
-  #sidebar, body.hide-sidebar #sidebar {
-    position: fixed; z-index: 30; top: 0; bottom: 0; left: 0; width: min(82vw, 300px);
-    visibility: visible; background: var(--desk); border-right: 1px solid var(--rule);
-    padding: calc(14px + env(safe-area-inset-top, 0px)) 14px calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
-    transform: translateX(-105%); transition: transform 0.2s ease;
-  }
-  body.show-sidebar #sidebar { transform: none; }
+/* ---------- narrower screens ---------- */
+@media (max-width: 900px) {
+  .bar { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "drawer title end" "tools tools tools"; }
+  .bar-tools { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .bar-tools::-webkit-scrollbar { display: none; }
+}
+@media (max-width: 640px) {
+  .cnt-genko, .save-text { display: none; }
+  .ch-title { font-size: 15px; }
+  .main { grid-template-columns: minmax(0, 1fr); }
+  .find-row { gap: 4px; }
+  .find-row input { flex-basis: 110px; max-width: none; }
+  .find-row .tbtn { padding: 0 7px; }
+  .find-count { min-width: 0; font-size: 11px; }
   #panel {
-    position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; width: auto; max-height: 62%;
-    margin: 0; border-left: 0; border-top: 1px solid var(--rule); background: var(--desk);
-    border-radius: 12px 12px 0 0; box-shadow: 0 -8px 24px -12px rgb(0 0 0 / 0.3);
+    position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; width: auto; max-height: 62%; margin: 0;
+    border-left: 0; border-top: 1px solid var(--rule); border-radius: 12px 12px 0 0;
+    background: var(--paper); box-shadow: 0 -10px 30px -14px rgb(10 20 40 / 0.4);
     padding: 14px max(16px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   }
-  body.show-sidebar .scrim { display: block; position: fixed; inset: 0; z-index: 25; background: rgb(0 0 0 / 0.3); }
-  .save-state { margin-left: 0; }
 }
-@media (prefers-reduced-motion: reduce) { #sidebar { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) {
+  .drawer, body.drawer-open .drawer, .bar, .goal-line i { transition: none; }
+}
 </style>
 </head>
 <body>
 <div id="app" lang="ja">
-  <header class="bar">
-    <div class="brand">
-      <button type="button" class="btn ghost" id="btnChapters" title="章の一覧を表示／非表示" aria-label="章の一覧">☰</button>
-      <span class="seal" aria-hidden="true">稿</span>
-      <span class="brand-name">原稿帳</span>
-    </div>
-    <input id="workTitle" class="work-title" type="text" aria-label="作品タイトル" placeholder="作品タイトル">
-    <div class="tools">
+  <header class="bar" id="bar">
+    <button type="button" class="icon" id="btnDrawer" aria-label="作品と章の一覧" aria-expanded="false" title="作品と章の一覧">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <input id="chTitle" class="ch-title" type="text" aria-label="章タイトル" placeholder="章タイトル" autocomplete="off">
+    <div class="bar-tools" id="barTools" role="toolbar" aria-label="執筆ツール">
+      <button type="button" class="tbtn" data-ins="ruby" title="ルビ：文字を選んでから押す。漢字の直後なら、そのまま押して読みを入力">ルビ</button>
+      <button type="button" class="tbtn" data-ins="bouten" title="傍点：文字を選んでから押す">傍点</button>
+      <button type="button" class="tbtn glyph" data-ins="dash" title="ダッシュ（――）" aria-label="ダッシュを入力">――</button>
+      <button type="button" class="tbtn glyph" data-ins="leader" title="三点リーダー（……）" aria-label="三点リーダーを入力">……</button>
+      <span class="sep" aria-hidden="true"></span>
       <div class="seg" role="group" aria-label="組方向">
-        <button type="button" class="btn" id="btnVertical" aria-pressed="true">縦書き</button>
-        <button type="button" class="btn" id="btnHorizontal" aria-pressed="false">横書き</button>
+        <button type="button" class="tbtn" id="btnVertical" aria-pressed="true" title="縦書き">縦</button>
+        <button type="button" class="tbtn" id="btnHorizontal" aria-pressed="false" title="横書き">横</button>
       </div>
-      <div class="seg" role="group" aria-label="表示">
-        <button type="button" class="btn" id="btnEdit" aria-pressed="true">執筆</button>
-        <button type="button" class="btn" id="btnPreview" aria-pressed="false">プレビュー</button>
-      </div>
-      <button type="button" class="btn" data-panel="search" aria-pressed="false">検索・置換</button>
-      <button type="button" class="btn" data-panel="check" aria-pressed="false">表記チェック</button>
-      <button type="button" class="btn" data-panel="settings" aria-pressed="false">表示設定</button>
-      <button type="button" class="btn" data-panel="file" aria-pressed="false">書き出し・読み込み</button>
+      <button type="button" class="tbtn" id="btnPreview" aria-pressed="false" title="ルビや傍点を表示して確認">プレビュー</button>
+      <button type="button" class="tbtn" id="btnFind" aria-pressed="false" title="検索・置換（Ctrl+F）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>検索
+      </button>
     </div>
+    <div class="bar-end">
+      <button type="button" class="count" id="btnStats" aria-haspopup="dialog" aria-expanded="false" title="文字数・目標・保存先">
+        <span class="cnt-sel" id="cntSel" hidden>選択 <b id="cntSelN">0</b> /</span>
+        <span><b id="cntChars">0</b> 字</span>
+        <span class="cnt-genko"><span id="cntGenko">0</span>枚</span>
+        <span class="save" id="saveState"><i class="dot"></i><span class="save-text" id="saveText">保存済み</span></span>
+      </button>
+      <button type="button" class="icon" id="btnMenu" aria-label="メニュー" aria-haspopup="menu" aria-expanded="false" title="メニュー">
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>
+      </button>
+
+      <div class="pop stats" id="statsPop" role="dialog" aria-label="文字数と目標" hidden>
+        <div class="stat">
+          <span class="stat-label">この章</span>
+          <span class="stat-main"><b id="stChars">0</b> 字</span>
+          <span class="stat-sub">原稿用紙（400字詰め）約 <span id="stGenko">0</span> 枚</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">作品全体（<span id="stChapters">0</span>章）</span>
+          <span class="stat-main"><b id="stTotal">0</b> 字</span>
+          <span class="stat-sub">原稿用紙 約 <span id="stTotalGenko">0</span> 枚</span>
+        </div>
+        <label class="goal-set">1章の目標 <input type="number" id="targetInput" min="0" step="500" inputmode="numeric"> 字</label>
+        <div class="goal-bar" id="goalBar"><i id="goalFill"></i></div>
+        <span class="stat-sub" id="goalText"></span>
+        <p class="save-detail" id="saveDetail"></p>
+      </div>
+
+      <div class="pop menu" id="menuPop" role="menu" hidden>
+        <button type="button" role="menuitem" data-open="check"><span>表記チェック</span></button>
+        <button type="button" role="menuitem" data-open="settings"><span>表示設定</span></button>
+        <button type="button" role="menuitem" data-open="file"><span>書き出し・読み込み</span></button>
+        <button type="button" role="menuitem" id="btnFull"><span id="fullLabel">全画面表示</span></button>
+      </div>
+    </div>
+    <div class="goal-line" id="goalLine" aria-hidden="true"><i id="goalLineFill"></i></div>
   </header>
 
-  <div class="main">
-    <aside id="sidebar" aria-label="章">
-      <div class="label">章</div>
-      <p class="sample-note" id="sampleNote" hidden>これは見本の原稿です。そのまま書き換えても、「章を追加」から新しく始めても構いません。</p>
-      <ul class="ch-list" id="chList"></ul>
-      <button type="button" class="btn" id="btnAddChapter">＋ 章を追加</button>
-      <div class="work-total">作品合計<br><strong id="workChars">0</strong> 字 ・ 原稿用紙 約<span id="workGenko">0</span>枚</div>
-    </aside>
-
-    <section class="desk" id="desk">
-      <input id="chTitle" class="ch-title" type="text" aria-label="章タイトル" placeholder="章タイトル">
-      <div class="assist" id="assist" role="toolbar" aria-label="入力補助">
-        <button type="button" class="btn" data-ins="ruby" title="選択した文字にルビを振る（｜親文字《ルビ》）">ルビ</button>
-        <button type="button" class="btn" data-ins="bouten" title="選択した文字に傍点（《《文字》》）">傍点</button>
-        <button type="button" class="btn" data-ins="dash" title="ダッシュ２つ">――</button>
-        <button type="button" class="btn" data-ins="leader" title="三点リーダー２つ">……</button>
-        <button type="button" class="btn" data-ins="kagi" title="かぎかっこ">「」</button>
-        <button type="button" class="btn" data-ins="nijukagi" title="二重かぎかっこ">『』</button>
-        <button type="button" class="btn" data-ins="space" title="全角スペース">字下げ</button>
-      </div>
-      <div class="sheet vertical" id="sheet">
-        <textarea id="text" class="writing" spellcheck="false" aria-label="本文" placeholder="ここに本文を書きます"></textarea>
-        <div id="preview" class="writing" hidden tabindex="0" aria-label="プレビュー"></div>
-      </div>
-    </section>
-
-    <aside id="panel" hidden aria-live="polite"></aside>
+  <div class="findbar" id="findbar" hidden>
+    <div class="find-row">
+      <input type="search" id="findQ" placeholder="検索（Enter で次へ）" aria-label="検索する文字" autocomplete="off">
+      <span class="find-count" id="findCount" aria-live="polite"></span>
+      <button type="button" class="tbtn" id="findPrev">前へ</button>
+      <button type="button" class="tbtn" id="findNext">次へ</button>
+      <button type="button" class="tbtn" id="btnReplace" aria-pressed="false">置換</button>
+      <button type="button" class="icon" id="findClose" aria-label="検索を閉じる" title="閉じる（Esc）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="find-row" id="replRow" hidden>
+      <input type="text" id="replQ" placeholder="置き換える文字" aria-label="置き換える文字" autocomplete="off">
+      <button type="button" class="tbtn" id="replOne">置換して次へ</button>
+      <button type="button" class="tbtn" id="replAll">すべて置換</button>
+    </div>
+    <div class="find-other" id="findOther" hidden></div>
   </div>
 
-  <footer class="status">
-    <span class="goal" id="goal">この章 <b id="stChars">0</b> 字<span id="stTarget"></span><span class="goal-bar" aria-hidden="true"><i id="goalFill"></i></span></span>
-    <span>原稿用紙 約<b id="stGenko">0</b>枚</span>
-    <span id="stSel" hidden>選択 <b id="stSelN">0</b> 字</span>
-    <span class="save-state" id="saveState">準備中…</span>
-  </footer>
-  <div class="scrim" id="scrim"></div>
-  <div class="toast" id="toast" hidden role="status"></div>
+  <div class="main">
+    <div class="stage vertical" id="stage">
+      <textarea id="text" class="writing" spellcheck="false" aria-label="本文" placeholder="ここに本文を書きます"></textarea>
+      <div id="preview" class="writing" hidden tabindex="0" aria-label="プレビュー"></div>
+      <div class="hint" id="sampleHint" hidden>
+        <span>見本の原稿です。書き換えて始めるか、左上の ☰ から章を追加できます。</span>
+        <button type="button" class="icon" id="hintClose" aria-label="案内を閉じる">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+    </div>
+    <aside id="panel" hidden></aside>
+  </div>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="drawer" id="drawer" aria-label="作品と章">
+    <div class="drawer-head">
+      <span class="seal" aria-hidden="true">稿</span><span class="brand">原稿帳</span>
+      <button type="button" class="icon" id="drawerClose" aria-label="一覧を閉じる">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <input id="workTitle" class="work-title" type="text" aria-label="作品タイトル" placeholder="作品タイトル" autocomplete="off">
+    <div class="label">章</div>
+    <ul class="ch-list" id="chList"></ul>
+    <button type="button" class="tbtn add-ch" id="btnAddChapter">＋ 章を追加</button>
+    <div class="work-total">作品全体 <b id="workChars">0</b> 字 ・ 原稿用紙 約<span id="workGenko">0</span>枚</div>
+  </aside>
+
+  <div class="toast" id="toast" role="status" hidden><span id="toastMsg"></span><button type="button" id="toastAct" hidden></button></div>
 </div>
 
-<template id="tpl-search">
-  <div class="panel-head"><h2>検索・置換</h2><button type="button" class="btn ghost" data-close>閉じる</button></div>
-  <label class="field"><span>検索する文字</span><input type="text" id="findQ" autocomplete="off"></label>
-  <label class="field"><span>置き換える文字</span><input type="text" id="replQ" autocomplete="off"></label>
-  <div class="row">
-    <button type="button" class="btn" id="findPrev">前へ</button>
-    <button type="button" class="btn" id="findNext">次へ</button>
-    <button type="button" class="btn" id="replOne">置換</button>
-    <button type="button" class="btn" id="replAll">すべて置換</button>
-  </div>
-  <p class="count-badge" id="findCount">この章：0件</p>
-  <div class="field"><span>ほかの章</span><ul class="hits" id="findOther"></ul></div>
-</template>
-
 <template id="tpl-check">
-  <div class="panel-head"><h2>表記チェック</h2><button type="button" class="btn ghost" data-close>閉じる</button></div>
-  <p class="muted">縦書き原稿の一般的な決まりごとに沿っているかを確認します。項目を押すと該当箇所を選択します。</p>
+  <div class="panel-head"><h2>表記チェック</h2><button type="button" class="icon" data-close aria-label="閉じる"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <p class="muted">小説原稿の一般的な決まりごとに沿っているかを確かめます。項目を押すと該当箇所を選択します。</p>
   <ul class="hits" id="checkList"></ul>
 </template>
 
 <template id="tpl-settings">
-  <div class="panel-head"><h2>表示設定</h2><button type="button" class="btn ghost" data-close>閉じる</button></div>
+  <div class="panel-head"><h2>表示設定</h2><button type="button" class="icon" data-close aria-label="閉じる"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
   <label class="field"><span>書体</span>
     <select id="setFont"><option value="mincho">明朝体</option><option value="gothic">ゴシック体</option></select>
   </label>
   <label class="field"><span>文字の大きさ <b id="setFsV"></b></span><input type="range" id="setFs" min="13" max="30" step="1"></label>
   <label class="field"><span>行間 <b id="setLhV"></b></span><input type="range" id="setLh" min="1.4" max="2.6" step="0.1"></label>
-  <label class="field"><span>1行の字数 <b id="setLcV"></b></span><input type="range" id="setLc" min="15" max="60" step="1"></label>
-  <label class="field"><span>この章の目標文字数</span><input type="number" id="setTarget" min="0" step="500"></label>
-  <label class="check"><input type="checkbox" id="setIndent"><span>改行したら段落頭を自動で字下げする<br><span class="muted">かぎかっこで始まる段落は字下げしません。Shift＋Enter で字下げなしの改行。</span></span></label>
-  <label class="check"><input type="checkbox" id="setTcy"><span>プレビューで半角数字・「!?」を縦中横にする</span></label>
+  <label class="field"><span>1行の字数（画面に収まらないときは画面に合わせます） <b id="setLcV"></b></span><input type="range" id="setLc" min="15" max="60" step="1"></label>
+  <label class="check"><input type="checkbox" id="setIndent"><span>改行したら段落頭を自動で字下げする<br><span class="muted">かぎかっこで始まる段落は字下げしません。</span></span></label>
+  <label class="check"><input type="checkbox" id="setDim"><span>入力中は上のバーを薄くする（マウスを動かすと戻ります）</span></label>
+  <label class="check"><input type="checkbox" id="setTcy"><span>縦書きプレビューで半角数字・「!?」を縦中横にする</span></label>
   <div class="field"><span>記法</span>
-    <table class="notation">
-      <tr><td>｜親文字《おやもじ》</td><td>ルビ</td></tr>
-      <tr><td>漢字《かんじ》</td><td>漢字だけならルビの開始記号は省略可</td></tr>
-      <tr><td>《《傍点》》</td><td>傍点（ゴマ）</td></tr>
-      <tr><td>｜《 》</td><td>《を文字として表示</td></tr>
+    <table class="table">
+      <tr><td class="mono">｜親文字《おやもじ》</td><td>ルビ</td></tr>
+      <tr><td class="mono">漢字《かんじ》</td><td>漢字だけなら「｜」は省略可</td></tr>
+      <tr><td class="mono">《《傍点》》</td><td>傍点</td></tr>
+      <tr><td class="mono">｜《</td><td>「《」をそのまま表示</td></tr>
+    </table>
+  </div>
+  <div class="field"><span>キー操作</span>
+    <table class="table">
+      <tr><td><kbd>Enter</kbd></td><td>改行して字下げ</td></tr>
+      <tr><td><kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>字下げせずに改行</td></tr>
+      <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>F</kbd></td><td>検索・置換</td></tr>
+      <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>G</kbd></td><td>次を検索（Shift で前）</td></tr>
+      <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd></td><td>今すぐ保存</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>開いているものを閉じる</td></tr>
     </table>
   </div>
 </template>
 
 <template id="tpl-file">
-  <div class="panel-head"><h2>書き出し・読み込み</h2><button type="button" class="btn ghost" data-close>閉じる</button></div>
-  <div class="field"><span>書き出し（テキストはルビ記法のまま、小説投稿サイトに貼り付けられます）</span>
+  <div class="panel-head"><h2>書き出し・読み込み</h2><button type="button" class="icon" data-close aria-label="閉じる"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="field"><span>書き出し（.txt はルビ記法のままなので、小説投稿サイトにそのまま貼れます）</span>
     <div class="row">
       <button type="button" class="btn" id="expChapter">この章を .txt</button>
       <button type="button" class="btn" id="expAll">全章を .txt</button>
@@ -367,7 +478,7 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
   <div class="field"><span>コピー</span>
     <div class="row"><button type="button" class="btn" id="copyChapter">この章の本文をコピー</button></div>
   </div>
-  <div class="field"><span>読み込み（.txt は新しい章として追加、.json はバックアップから復元。Shift_JIS のテキストにも対応）</span>
+  <div class="field"><span>読み込み（.txt は新しい章として追加、.json はバックアップから復元。Shift_JIS のテキストも読めます）</span>
     <input type="file" id="importFile" accept=".txt,.json,text/plain,application/json">
   </div>
   <div id="importConfirm"></div>
@@ -384,7 +495,10 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
   const $ = (s, root = document) => root.querySelector(s);
   const ta = $('#text');
   const preview = $('#preview');
-  const sheet = $('#sheet');
+  const stage = $('#stage');
+  const findbar = $('#findbar');
+  const panelEl = $('#panel');
+  const isTouch = window.matchMedia('(pointer: coarse)').matches;
 
   const SAMPLE = [
     '　駅前の商店街を抜けた先に、その古書店はあった。硝子《ガラス》戸の向こうで、店主の老人が|頁《ページ》をめくっている。',
@@ -400,7 +514,7 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
   ].join('\n');
 
   const newId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  const defaultSettings = () => ({ vertical: true, font: 'mincho', fs: 18, lh: 1.9, lineChars: 40, autoIndent: true, target: 5000, tcy: true });
+  const defaultSettings = () => ({ vertical: true, font: 'mincho', fs: 18, lh: 1.9, lineChars: 40, autoIndent: true, target: 5000, tcy: true, dimWhileTyping: true });
   function defaultState() {
     const id = newId();
     return {
@@ -408,6 +522,7 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
       chapters: [{ id, title: '第一話　栞の持ち主', body: SAMPLE, updatedAt: 0 }],
       currentId: id, settings: defaultSettings(),
       metaUpdatedAt: 0, pristine: true, pending: [], metaPending: false,
+      carets: {}, hintDismissed: false,
     };
   }
 
@@ -421,6 +536,7 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
       if (!s || !Array.isArray(s.chapters) || !s.chapters.length) return null;
       s.settings = Object.assign(defaultSettings(), s.settings || {});
       s.pending = Array.isArray(s.pending) ? s.pending : [];
+      s.carets = s.carets && typeof s.carets === 'object' ? s.carets : {};
       return s;
     } catch { return null; }
   }
@@ -435,7 +551,6 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
   let state = loadLocal() || defaultState();
   let viewMode = 'edit';
   let panel = null;
-  let confirmDeleteId = null;
 
   const cur = () => state.chapters.find(c => c.id === state.currentId) || state.chapters[0];
 
@@ -480,7 +595,6 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
     return s.replaceAll(PH, '《');
   }
 
-  // ---------- counts cache ----------
   const countCache = new Map();
   function chapterStats(ch) {
     const c = countCache.get(ch.id);
@@ -498,10 +612,11 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
     root.setProperty('--lh', String(s.lh));
     root.setProperty('--line-chars', String(s.lineChars));
     root.setProperty('--f-text', s.font === 'gothic' ? 'var(--f-ui)' : 'var(--f-body)');
-    sheet.classList.toggle('vertical', s.vertical);
-    sheet.classList.toggle('horizontal', !s.vertical);
+    stage.classList.toggle('vertical', s.vertical);
+    stage.classList.toggle('horizontal', !s.vertical);
     $('#btnVertical').setAttribute('aria-pressed', String(s.vertical));
     $('#btnHorizontal').setAttribute('aria-pressed', String(!s.vertical));
+    if (!s.dimWhileTyping) document.body.classList.remove('typing');
   }
 
   function renderChapterList() {
@@ -518,38 +633,42 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
       b.append(name, cnt);
       li.append(b);
       if (ch.id === state.currentId) {
-        if (confirmDeleteId === ch.id) {
-          const box = document.createElement('div'); box.className = 'ch-confirm';
-          box.innerHTML = '<span>この章を削除しますか？元に戻せません。</span><div><button type="button" class="btn danger solid" data-act="del-yes">削除する</button><button type="button" class="btn" data-act="del-no">やめる</button></div>';
-          li.append(box);
-        } else {
-          const act = document.createElement('div'); act.className = 'ch-actions';
-          act.innerHTML = `<button type="button" class="btn ghost" data-act="up" ${i === 0 ? 'disabled' : ''} aria-label="上へ移動">↑ 上へ</button>`
-            + `<button type="button" class="btn ghost" data-act="down" ${i === state.chapters.length - 1 ? 'disabled' : ''} aria-label="下へ移動">↓ 下へ</button>`
-            + '<button type="button" class="btn ghost" data-act="del">削除</button>';
-          li.append(act);
-        }
+        const act = document.createElement('div'); act.className = 'ch-actions';
+        act.innerHTML = `<button type="button" class="tbtn" data-act="up" ${i === 0 ? 'disabled' : ''}>↑ 上へ</button>`
+          + `<button type="button" class="tbtn" data-act="down" ${i === state.chapters.length - 1 ? 'disabled' : ''}>↓ 下へ</button>`
+          + '<button type="button" class="tbtn" data-act="del">削除</button>';
+        li.append(act);
       }
       ul.append(li);
     });
-    $('#sampleNote').hidden = !state.pristine;
+  }
+  function renderDrawer() { $('#workTitle').value = state.title; renderChapterList(); }
+
+  // Focus the textarea and move the caret so the browser scrolls it into view.
+  function placeCaret(s, e = s) {
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(0, 0);
+    ta.setSelectionRange(s, e);
   }
 
-  function loadEditor() {
+  function loadEditor(focus) {
     const ch = cur();
     state.currentId = ch.id;
     ta.value = ch.body;
     $('#chTitle').value = ch.title;
     ta.scrollTop = 0; ta.scrollLeft = 0;
+    const saved = state.carets[ch.id];
+    const pos = Math.min(typeof saved === 'number' ? saved : ch.body.length, ch.body.length);
     if (viewMode === 'preview') renderPreview();
+    else if (focus && !isTouch) placeCaret(pos);
+    else ta.setSelectionRange(pos, pos);
   }
 
   function renderPreview() {
     const ch = cur();
     const tcy = state.settings.vertical && state.settings.tcy;
-    const lines = ch.body.split('\n');
     preview.innerHTML = `<h2 class="pv-title">${esc(ch.title || '')}</h2>`
-      + lines.map(l => l.trim() ? `<p>${lineToHtml(l, tcy)}</p>` : '<p><br></p>').join('');
+      + ch.body.split('\n').map(l => l.trim() ? `<p>${lineToHtml(l, tcy)}</p>` : '<p><br></p>').join('');
     preview.scrollTop = 0; preview.scrollLeft = 0;
   }
 
@@ -558,45 +677,67 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
   function renderStats() {
     const ch = cur();
     const st = chapterStats(ch);
-    $('#stChars').textContent = fmt(st.chars);
-    $('#stGenko').textContent = st.genko.toFixed(1);
-    const target = Number(state.settings.target) || 0;
-    $('#stTarget').textContent = target ? ` / 目標 ${fmt(target)} 字` : '';
-    $('#goalFill').style.width = target ? Math.min(100, st.chars / target * 100) + '%' : '0';
-    $('#goal').classList.toggle('done', !!target && st.chars >= target);
     let total = 0, genko = 0;
     for (const c of state.chapters) { const s = chapterStats(c); total += s.chars; genko += s.genko; }
+    const target = Number(state.settings.target) || 0;
+    const ratio = target ? Math.min(1, st.chars / target) : 0;
+    const done = !!target && st.chars >= target;
+    $('#cntChars').textContent = fmt(st.chars);
+    $('#cntGenko').textContent = st.genko.toFixed(1);
+    $('#goalLineFill').style.width = (ratio * 100) + '%';
+    $('#goalLine').classList.toggle('done', done);
+    $('#stChars').textContent = fmt(st.chars);
+    $('#stGenko').textContent = st.genko.toFixed(1);
+    $('#stTotal').textContent = fmt(total);
+    $('#stTotalGenko').textContent = genko.toFixed(1);
+    $('#stChapters').textContent = state.chapters.length;
+    $('#goalFill').style.width = (ratio * 100) + '%';
+    $('#goalBar').classList.toggle('done', done);
+    $('#goalText').textContent = !target ? '目標は設定されていません' : done ? '目標に達しました' : `あと ${fmt(target - st.chars)} 字（${Math.floor(st.chars / target * 100)}%）`;
     $('#workChars').textContent = fmt(total);
     $('#workGenko').textContent = genko.toFixed(1);
     const item = document.querySelector(`.ch-item[data-id="${ch.id}"] .ch-count`);
     if (item) item.textContent = fmt(st.chars) + '字';
   }
 
-  function renderAll() {
+  function renderHint() { $('#sampleHint').hidden = !(state.pristine && !state.hintDismissed); }
+  function updateDocTitle() { document.title = (state.title ? state.title + ' | ' : '') + '原稿帳'; }
+
+  function renderAll(focus) {
     applySettings();
-    $('#workTitle').value = state.title;
-    renderChapterList();
-    loadEditor();
+    renderDrawer();
+    loadEditor(focus);
     renderStats();
+    renderHint();
+    updateDocTitle();
     if (panel) renderPanel();
   }
 
   // ---------- save state ----------
   const cloud = { mode: 'local', db: null, col: null, busy: false, again: false, timer: null, error: '', lastSaved: 0, oversize: new Set() };
+  let lastWarnShown = '';
 
   function updateSaveState() {
-    const el = $('#saveState');
-    let text, warn = false;
-    if (cloud.mode === 'connecting') text = '保存先に接続中…（この端末には保存済み）';
+    let short, detail, cls = '';
+    if (cloud.mode === 'connecting') { short = '接続中…'; detail = '保存先に接続しています。このブラウザには保存済みです。'; cls = 'busy'; }
     else if (cloud.mode === 'cloud') {
-      if (cloud.error) { text = cloud.error; warn = true; }
-      else if (cloud.busy || state.pending.length || state.metaPending) text = '保存中…';
-      else text = 'アカウントに保存済み' + (cloud.lastSaved ? ' ' + new Date(cloud.lastSaved).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '');
-    } else if (cloud.mode === 'readonly') { text = '閲覧権限のため、この端末のブラウザにだけ保存しています'; warn = true; }
-    else if (!localOk) { text = '保存できません。「書き出し」からバックアップしてください'; warn = true; }
-    else text = 'このブラウザに自動保存済み';
-    el.textContent = text;
-    el.classList.toggle('warn', warn);
+      if (cloud.error) { short = '保存エラー'; detail = cloud.error; cls = 'warn'; }
+      else if (cloud.busy || state.pending.length || state.metaPending) { short = '保存中…'; detail = 'あなたのアカウントに保存しています。'; cls = 'busy'; }
+      else {
+        const t = cloud.lastSaved ? new Date(cloud.lastSaved).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
+        short = '保存済み';
+        detail = `claude.ai のあなたのアカウントに保存済み${t ? '（' + t + '）' : ''}。ほかの人には見えず、別の端末からも続きを書けます。`;
+      }
+    } else if (cloud.mode === 'readonly') { short = 'この端末のみ'; detail = '閲覧権限のため、このブラウザにだけ保存しています。'; cls = 'warn'; }
+    else if (!localOk) { short = '保存エラー'; detail = 'このブラウザに保存できません。メニューの「書き出し・読み込み」からバックアップしてください。'; cls = 'warn'; }
+    else { short = '保存済み'; detail = 'このブラウザに自動保存しています。ブラウザのデータを消すと失われるため、ときどきメニューの「書き出し・読み込み」からバックアップしてください。'; }
+    const el = $('#saveState');
+    el.className = 'save' + (cls ? ' ' + cls : '');
+    $('#saveText').textContent = short;
+    $('#saveDetail').textContent = detail;
+    $('#btnStats').title = '文字数・目標 ／ ' + detail;
+    if (cls === 'warn') { if (detail !== lastWarnShown) { lastWarnShown = detail; toast(detail); } }
+    else lastWarnShown = '';
   }
 
   function scheduleSync() {
@@ -644,7 +785,7 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
       cloud.lastSaved = Date.now();
       if (cloud.oversize.size) {
         const names = state.chapters.filter(c => cloud.oversize.has(c.id)).map(c => '「' + (c.title || '無題') + '」');
-        if (names.length) cloud.error = names.join('') + 'は長すぎてアカウントに保存できません（このブラウザには保存済み）。章を分けてください';
+        if (names.length) cloud.error = names.join('') + 'は長すぎてアカウントに保存できません（このブラウザには保存済み）。章を分けてください。';
       }
     } catch (e) {
       if (current && !state.pending.includes(current)) state.pending.unshift(current);
@@ -652,8 +793,8 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
       const code = e && e.code;
       if (code === 'invalid_argument') { cloud.mode = 'readonly'; }
       else if (code === 'revoked' || code === 'not_granted' || code === 'capability_disabled' || code === 'capability_removed') { cloud.mode = 'local'; }
-      else if (code === 'quota_exceeded') { cloud.error = '保存容量の上限に達しました。「書き出し」でバックアップし、不要な章を削除してください'; }
-      else { cloud.error = 'アカウントへの保存に失敗しました。しばらくして再試行します（このブラウザには保存済み）'; setTimeout(scheduleSync, 10000); }
+      else if (code === 'quota_exceeded') { cloud.error = '保存容量の上限に達しました。「書き出し・読み込み」でバックアップし、不要な章を削除してください。'; }
+      else { cloud.error = 'アカウントへの保存に失敗しました。少ししてから自動で再試行します（このブラウザには保存済み）。'; setTimeout(scheduleSync, 10000); }
     } finally {
       cloud.busy = false;
       saveLocalSoon();
@@ -724,8 +865,9 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
       const before = cur().body;
       mergeCloud(docs);
       saveLocalNow();
-      renderAll();
-      if (focused && cur().body === before) { ta.focus(); ta.setSelectionRange(caret, caret); }
+      const same = cur().body === before;
+      renderAll(false);
+      if (focused && same) placeCaret(caret);
       if (state.pending.length || state.metaPending) scheduleSync();
       updateSaveState();
     } catch (e) {
@@ -736,9 +878,10 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
   // ---------- editing ----------
   let composing = false;
   let indentPos = -1;
+  let findArmed = false;
 
   function insertText(text) {
-    ta.focus();
+    ta.focus({ preventScroll: true });
     let ok = false;
     try { ok = document.execCommand('insertText', false, text); } catch { ok = false; }
     if (!ok) {
@@ -764,18 +907,29 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
     }
   }
 
+  let checkTimer = null, findTimer = null;
   ta.addEventListener('input', (e) => {
     const ch = cur();
     ch.body = ta.value;
     touchChapter(ch);
-    if (state.pristine === false) $('#sampleNote').hidden = true;
+    renderHint();
     scheduleStats();
+    if (state.settings.dimWhileTyping && !isTouch) document.body.classList.add('typing');
     if (!e.isComposing) fixIndentBeforeBracket();
+    if (panel === 'check') { clearTimeout(checkTimer); checkTimer = setTimeout(renderCheck, 600); }
+    if (!findbar.hidden) { clearTimeout(findTimer); findTimer = setTimeout(updateFind, 300); }
   });
   ta.addEventListener('compositionstart', () => { composing = true; });
   ta.addEventListener('compositionend', () => { composing = false; setTimeout(fixIndentBeforeBracket, 0); });
+  ta.addEventListener('pointerdown', () => { findArmed = false; });
+  ta.addEventListener('blur', () => { document.body.classList.remove('typing'); });
 
   ta.addEventListener('keydown', (e) => {
+    if (findArmed && e.key === 'Enter' && !e.isComposing && !findbar.hidden) {
+      const q = $('#findQ').value;
+      if (q && ta.value.slice(ta.selectionStart, ta.selectionEnd) === q) { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); return; }
+    }
+    if (e.key !== 'Shift') findArmed = false;
     if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || composing) return;
     if (!state.settings.autoIndent || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
     const v = ta.value, s = ta.selectionStart, end = ta.selectionEnd;
@@ -795,36 +949,59 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
     indentPos = s + 1;
   });
 
-  function wrapSelection(open, close, needSelMsg, caretBack) {
+  // In vertical writing the text scrolls sideways; let the mouse wheel do that.
+  function verticalWheel(e) {
+    if (!state.settings.vertical || e.ctrlKey) return;
+    const el = e.currentTarget;
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || el.scrollWidth <= el.clientWidth) return;
+    const unit = e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? el.clientWidth : 1;
+    el.scrollLeft -= e.deltaY * unit;
+    e.preventDefault();
+  }
+  ta.addEventListener('wheel', verticalWheel, { passive: false });
+  preview.addEventListener('wheel', verticalWheel, { passive: false });
+
+  document.addEventListener('mousemove', (e) => {
+    if (document.body.classList.contains('typing') && Math.abs(e.movementX) + Math.abs(e.movementY) > 6) document.body.classList.remove('typing');
+  });
+
+  function insertAt(text, back) {
+    const s = ta.selectionStart;
+    insertText(text);
+    const p = s + text.length - back;
+    ta.setSelectionRange(p, p);
+  }
+  function ins(kind) {
     if (viewMode !== 'edit') setView('edit');
     const s = ta.selectionStart, e = ta.selectionEnd;
     const sel = ta.value.slice(s, e);
-    if (needSelMsg && !sel) { toast(needSelMsg); ta.focus(); return; }
-    const text = open + sel + close;
-    insertText(text);
-    const pos = s + text.length - caretBack;
-    ta.setSelectionRange(pos, pos);
-  }
-
-  $('#assist').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-ins]');
-    if (!b) return;
-    switch (b.dataset.ins) {
-      case 'ruby': wrapSelection('｜', '《》', 'ルビを振る文字を選択してから押してください', 1); break;
-      case 'bouten': wrapSelection('《《', '》》', '傍点を付ける文字を選択してから押してください', 0); break;
-      case 'dash': wrapSelection('――', '', null, 0); break;
-      case 'leader': wrapSelection('……', '', null, 0); break;
-      case 'kagi': { const has = ta.selectionStart !== ta.selectionEnd; wrapSelection('「', '」', null, has ? 0 : 1); break; }
-      case 'nijukagi': { const has = ta.selectionStart !== ta.selectionEnd; wrapSelection('『', '』', null, has ? 0 : 1); break; }
-      case 'space': wrapSelection('　', '', null, 0); break;
+    switch (kind) {
+      case 'ruby':
+        if (sel.includes('\n')) { toast('ルビは1行の中の文字に振ってください'); return; }
+        if (sel) insertAt('｜' + sel + '《》', 1);
+        else if (/[\p{Script=Han}々〆ヵヶ]$/u.test(ta.value.slice(Math.max(0, s - 2), s))) insertAt('《》', 1);
+        else { toast('ルビを振る文字を選んでから押してください（漢字の直後なら、そのまま押せます）'); ta.focus(); }
+        break;
+      case 'bouten':
+        if (sel.includes('\n')) { toast('傍点は1行の中の文字に付けてください'); return; }
+        insertAt('《《' + sel + '》》', sel ? 0 : 2);
+        break;
+      case 'dash': insertAt('――', 0); break;
+      case 'leader': insertAt('……', 0); break;
     }
-  });
+  }
+  const tools = $('#barTools');
+  const keepFocus = (e) => { if (e.target.closest('[data-ins]')) e.preventDefault(); };
+  tools.addEventListener('pointerdown', keepFocus);
+  tools.addEventListener('mousedown', keepFocus);
+  tools.addEventListener('click', (e) => { const b = e.target.closest('[data-ins]'); if (b && !b.disabled) ins(b.dataset.ins); });
 
   document.addEventListener('selectionchange', () => {
-    if (document.activeElement !== ta) { $('#stSel').hidden = true; return; }
+    if (document.activeElement !== ta) { $('#cntSel').hidden = true; return; }
+    state.carets[state.currentId] = ta.selectionStart;
     const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
-    $('#stSel').hidden = !sel;
-    if (sel) $('#stSelN').textContent = fmt(countChars(sel));
+    $('#cntSel').hidden = !sel;
+    if (sel) $('#cntSelN').textContent = fmt(countChars(sel));
   });
 
   $('#chTitle').addEventListener('input', (e) => {
@@ -834,30 +1011,54 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
     const name = document.querySelector(`.ch-item[data-id="${ch.id}"] .ch-name`);
     if (name) name.textContent = ch.title || '無題の章';
   });
-  $('#workTitle').addEventListener('input', (e) => { state.title = e.target.value; touchMeta(); });
+  $('#chTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); placeCaret(ta.selectionStart); } });
+  $('#workTitle').addEventListener('input', (e) => { state.title = e.target.value; touchMeta(); updateDocTitle(); });
+  $('#hintClose').addEventListener('click', () => {
+    state.hintDismissed = true;
+    saveLocalSoon();
+    renderHint();
+    if (!isTouch && viewMode === 'edit') placeCaret(ta.selectionStart, ta.selectionEnd);
+  });
 
-  // ---------- chapters ----------
-  function openChapter(id) {
+  // ---------- chapters drawer ----------
+  function setDrawer(open) {
+    document.body.classList.toggle('drawer-open', open);
+    $('#scrim').hidden = !open;
+    $('#btnDrawer').setAttribute('aria-expanded', String(open));
+    if (open) {
+      closePop();
+      renderDrawer();
+      const c = $('#chList .is-current .ch-open');
+      if (c) c.focus({ preventScroll: true });
+    }
+  }
+  const drawerOpen = () => document.body.classList.contains('drawer-open');
+  $('#btnDrawer').addEventListener('click', () => setDrawer(!drawerOpen()));
+  $('#drawerClose').addEventListener('click', () => setDrawer(false));
+  $('#scrim').addEventListener('click', () => setDrawer(false));
+
+  function openChapter(id, focus = true) {
+    if (document.activeElement === ta) state.carets[state.currentId] = ta.selectionStart;
     state.currentId = id;
-    confirmDeleteId = null;
     saveLocalSoon();
     renderChapterList();
-    loadEditor();
+    loadEditor(focus);
     renderStats();
     if (panel === 'check') renderPanel();
-    if (panel === 'search') updateFindCount();
-    document.body.classList.remove('show-sidebar');
+    if (!findbar.hidden) updateFind();
   }
 
   $('#btnAddChapter').addEventListener('click', () => {
     const id = newId();
     const ch = { id, title: `第${state.chapters.length + 1}話`, body: '　', updatedAt: Date.now() };
     state.chapters.push(ch);
+    state.carets[id] = 1;
     touchChapter(ch);
     touchMeta();
-    openChapter(id);
+    setDrawer(false);
     if (viewMode !== 'edit') setView('edit');
-    ta.focus(); ta.setSelectionRange(1, 1);
+    openChapter(id);
+    renderHint();
   });
 
   $('#chList').addEventListener('click', (e) => {
@@ -866,27 +1067,36 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
     const id = b.closest('.ch-item').dataset.id;
     const i = state.chapters.findIndex(c => c.id === id);
     switch (b.dataset.act) {
-      case 'open': openChapter(id); break;
+      case 'open':
+        setDrawer(false);
+        openChapter(id);
+        break;
       case 'up':
       case 'down': {
         const j = b.dataset.act === 'up' ? i - 1 : i + 1;
         if (j < 0 || j >= state.chapters.length) return;
         [state.chapters[i], state.chapters[j]] = [state.chapters[j], state.chapters[i]];
-        touchMeta(); renderChapterList();
+        touchMeta();
+        renderChapterList();
+        const again = document.querySelector(`.ch-item[data-id="${id}"] [data-act="${b.dataset.act}"]`);
+        if (again && !again.disabled) again.focus(); else { const o = $('#chList .is-current .ch-open'); if (o) o.focus(); }
         break;
       }
-      case 'del':
+      case 'del': {
         if (state.chapters.length === 1) { toast('章が１つしかないため削除できません'); return; }
-        confirmDeleteId = id; renderChapterList(); break;
-      case 'del-no': confirmDeleteId = null; renderChapterList(); break;
-      case 'del-yes': {
-        state.chapters.splice(i, 1);
+        const [removed] = state.chapters.splice(i, 1);
         countCache.delete(id);
-        confirmDeleteId = null;
         markPending(id);
         touchMeta();
-        openChapter(state.chapters[Math.max(0, i - 1)].id);
-        toast('章を削除しました');
+        openChapter(state.chapters[Math.max(0, i - 1)].id, false);
+        renderStats();
+        toast(`「${removed.title || '無題の章'}」を削除しました`, '元に戻す', () => {
+          state.chapters.splice(Math.min(i, state.chapters.length), 0, removed);
+          touchChapter(removed);
+          touchMeta();
+          openChapter(removed.id, !drawerOpen());
+          toast('元に戻しました');
+        });
         break;
       }
     }
@@ -895,15 +1105,16 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
   // ---------- view mode ----------
   function setView(mode) {
     viewMode = mode;
-    $('#btnEdit').setAttribute('aria-pressed', String(mode === 'edit'));
     $('#btnPreview').setAttribute('aria-pressed', String(mode === 'preview'));
     ta.hidden = mode !== 'edit';
     preview.hidden = mode !== 'preview';
-    $('#assist').querySelectorAll('button').forEach(b => { b.disabled = mode !== 'edit'; });
+    document.querySelectorAll('[data-ins]').forEach(b => { b.disabled = mode !== 'edit'; });
     if (mode === 'preview') renderPreview();
   }
-  $('#btnEdit').addEventListener('click', () => { setView('edit'); ta.focus(); });
-  $('#btnPreview').addEventListener('click', () => setView('preview'));
+  $('#btnPreview').addEventListener('click', () => {
+    if (viewMode === 'preview') { setView('edit'); if (!isTouch) placeCaret(ta.selectionStart, ta.selectionEnd); }
+    else setView('preview');
+  });
 
   function setSetting(key, value) {
     state.settings[key] = value;
@@ -913,99 +1124,128 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
   }
   $('#btnVertical').addEventListener('click', () => setSetting('vertical', true));
   $('#btnHorizontal').addEventListener('click', () => setSetting('vertical', false));
+  stage.addEventListener('click', (e) => { if (e.target === stage && viewMode === 'edit') ta.focus(); });
 
-  const narrow = window.matchMedia('(max-width: 760px)');
-  $('#btnChapters').addEventListener('click', () => {
-    if (narrow.matches) document.body.classList.toggle('show-sidebar');
-    else document.body.classList.toggle('hide-sidebar');
+  // ---------- popovers ----------
+  let openPop = null;
+  function togglePop(popId, btn) {
+    if (openPop && openPop.el.id === popId) { closePop(); return; }
+    closePop();
+    const el = $('#' + popId);
+    el.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+    openPop = { el, btn };
+    if (popId === 'statsPop') { renderStats(); $('#targetInput').value = state.settings.target || ''; }
+    else { const first = el.querySelector('button'); if (first) first.focus(); }
+  }
+  function closePop() {
+    if (!openPop) return;
+    openPop.el.hidden = true;
+    openPop.btn.setAttribute('aria-expanded', 'false');
+    openPop = null;
+  }
+  $('#btnStats').addEventListener('click', (e) => togglePop('statsPop', e.currentTarget));
+  $('#btnMenu').addEventListener('click', (e) => togglePop('menuPop', e.currentTarget));
+  document.addEventListener('pointerdown', (e) => {
+    if (openPop && !openPop.el.contains(e.target) && !openPop.btn.contains(e.target)) closePop();
   });
-  $('#scrim').addEventListener('click', () => document.body.classList.remove('show-sidebar'));
+  $('#targetInput').addEventListener('input', (e) => {
+    state.settings.target = Math.max(0, Math.floor(Number(e.target.value) || 0));
+    touchMeta();
+    renderStats();
+  });
+  $('#menuPop').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-open]');
+    if (!b) return;
+    closePop();
+    openPanel(b.dataset.open);
+  });
+  $('#btnFull').addEventListener('click', async () => {
+    closePop();
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch { toast('この環境では全画面表示にできません'); }
+  });
+  document.addEventListener('fullscreenchange', () => {
+    $('#fullLabel').textContent = document.fullscreenElement ? '全画面表示を終了' : '全画面表示';
+  });
 
-  // ---------- panels ----------
-  const panelEl = $('#panel');
-  document.querySelectorAll('[data-panel]').forEach(b => b.addEventListener('click', () => openPanel(panel === b.dataset.panel ? null : b.dataset.panel)));
+  // ---------- side panel ----------
   panelEl.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) openPanel(null); });
-
   function openPanel(name) {
     panel = name;
-    document.querySelectorAll('[data-panel]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.panel === name)));
     panelEl.hidden = !name;
     if (name) renderPanel();
+    else if (!isTouch && viewMode === 'edit') ta.focus({ preventScroll: true });
   }
-
   function renderPanel() {
     panelEl.textContent = '';
     panelEl.append($('#tpl-' + panel).content.cloneNode(true));
-    if (panel === 'search') setupSearch();
-    else if (panel === 'check') renderCheck();
+    if (panel === 'check') renderCheck();
     else if (panel === 'settings') setupSettings();
     else if (panel === 'file') setupFile();
   }
 
-  // search
-  let lastFind = '';
-  function setupSearch() {
-    const q = $('#findQ'), r = $('#replQ');
-    q.value = lastFind || ta.value.slice(ta.selectionStart, ta.selectionEnd).slice(0, 50);
-    q.addEventListener('input', () => { lastFind = q.value; updateFindCount(); });
-    q.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); } });
-    $('#findNext').addEventListener('click', () => findStep(1));
-    $('#findPrev').addEventListener('click', () => findStep(-1));
-    $('#replOne').addEventListener('click', () => {
-      const s = ta.selectionStart, e = ta.selectionEnd;
-      if (q.value && ta.value.slice(s, e) === q.value) insertText(r.value);
-      findStep(1);
-      updateFindCount();
-    });
-    $('#replAll').addEventListener('click', () => {
-      if (!q.value) return;
-      const n = ta.value.split(q.value).length - 1;
-      if (!n) { toast('見つかりませんでした'); return; }
-      if (viewMode !== 'edit') setView('edit');
-      ta.focus();
-      ta.setSelectionRange(0, ta.value.length);
-      insertText(ta.value.split(q.value).join(r.value));
-      ta.setSelectionRange(0, 0);
-      toast(`${n}件置換しました`);
-      updateFindCount();
-    });
-    $('#findOther').addEventListener('click', (e) => {
-      const b = e.target.closest('[data-id]');
-      if (!b) return;
-      openChapter(b.dataset.id);
-      findStep(1, true);
-    });
-    updateFindCount();
-    q.focus();
+  // ---------- find & replace ----------
+  function matchPositions(v, q) {
+    const out = [];
+    if (!q) return out;
+    let i = v.indexOf(q);
+    while (i !== -1 && out.length < 10000) { out.push(i); i = v.indexOf(q, i + q.length); }
+    return out;
   }
-  function updateFindCount() {
+  function openFind(withReplace) {
+    findbar.hidden = false;
+    $('#btnFind').setAttribute('aria-pressed', 'true');
+    if (withReplace) setReplace(true);
+    const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
     const q = $('#findQ');
-    if (!q) return;
-    const v = q.value;
-    $('#findCount').textContent = `この章：${v ? ta.value.split(v).length - 1 : 0}件`;
-    const ul = $('#findOther');
-    ul.textContent = '';
-    if (!v) return;
-    for (const c of state.chapters) {
-      if (c.id === state.currentId) continue;
-      const n = c.body.split(v).length - 1;
-      if (!n) continue;
-      const li = document.createElement('li');
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'hit'; b.dataset.id = c.id;
-      const m = document.createElement('span'); m.className = 'msg'; m.textContent = `${c.title || '無題の章'}　${n}件`;
-      b.append(m); li.append(b); ul.append(li);
+    if (sel && !sel.includes('\n') && sel.length <= 50 && document.activeElement === ta) q.value = sel;
+    q.focus(); q.select();
+    updateFind();
+  }
+  function closeFind() {
+    findbar.hidden = true;
+    findArmed = false;
+    $('#btnFind').setAttribute('aria-pressed', 'false');
+    if (viewMode === 'edit') ta.focus({ preventScroll: true });
+  }
+  function setReplace(on) {
+    $('#replRow').hidden = !on;
+    $('#btnReplace').setAttribute('aria-pressed', String(on));
+    if (on) $('#replQ').focus();
+  }
+  function updateFind() {
+    if (findbar.hidden) return;
+    const q = $('#findQ').value;
+    const pos = matchPositions(ta.value, q);
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const k = e - s === q.length ? pos.indexOf(s) : -1;
+    $('#findCount').textContent = !q ? '' : !pos.length ? '見つかりません' : k >= 0 ? `${k + 1} / ${pos.length}件` : `${pos.length}件`;
+    const other = $('#findOther');
+    other.textContent = '';
+    if (q) {
+      for (const c of state.chapters) {
+        if (c.id === state.currentId) continue;
+        const n = matchPositions(c.body, q).length;
+        if (!n) continue;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'chip'; b.dataset.id = c.id;
+        b.textContent = `${c.title || '無題の章'}（${n}）`;
+        other.append(b);
+      }
+      if (other.childElementCount) other.prepend(Object.assign(document.createElement('span'), { textContent: 'ほかの章：' }));
     }
+    other.hidden = !other.childElementCount;
   }
   function selectRange(s, e) {
     if (viewMode !== 'edit') setView('edit');
-    ta.blur();
-    ta.focus();
-    ta.setSelectionRange(s, e);
+    placeCaret(s, e);
   }
   function findStep(dir, fromStart) {
-    const q = $('#findQ') ? $('#findQ').value : lastFind;
-    if (!q) return;
+    const q = $('#findQ').value;
+    if (!q) { openFind(); return; }
     const v = ta.value;
     let i;
     if (dir > 0) {
@@ -1015,11 +1255,46 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
       i = ta.selectionStart > 0 ? v.lastIndexOf(q, ta.selectionStart - 1) : -1;
       if (i < 0) i = v.lastIndexOf(q);
     }
-    if (i < 0) { toast('見つかりませんでした'); return; }
+    if (i < 0) { updateFind(); return; }
     selectRange(i, i + q.length);
+    findArmed = true;
+    updateFind();
   }
+  $('#btnFind').addEventListener('click', () => (findbar.hidden ? openFind() : closeFind()));
+  $('#findClose').addEventListener('click', closeFind);
+  $('#btnReplace').addEventListener('click', () => setReplace($('#replRow').hidden));
+  $('#findQ').addEventListener('input', updateFind);
+  $('#findQ').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); }
+  });
+  $('#findNext').addEventListener('click', () => findStep(1));
+  $('#findPrev').addEventListener('click', () => findStep(-1));
+  $('#replOne').addEventListener('click', () => {
+    const q = $('#findQ').value;
+    if (q && ta.value.slice(ta.selectionStart, ta.selectionEnd) === q) insertText($('#replQ').value);
+    findStep(1);
+  });
+  $('#replAll').addEventListener('click', () => {
+    const q = $('#findQ').value;
+    if (!q) return;
+    const n = matchPositions(ta.value, q).length;
+    if (!n) { toast('見つかりませんでした'); return; }
+    if (viewMode !== 'edit') setView('edit');
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(0, ta.value.length);
+    insertText(ta.value.split(q).join($('#replQ').value));
+    ta.setSelectionRange(0, 0);
+    toast(`${n}件置換しました（Ctrl/⌘+Z で元に戻せます）`);
+    updateFind();
+  });
+  $('#findOther').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-id]');
+    if (!b) return;
+    openChapter(b.dataset.id, false);
+    findStep(1, true);
+  });
 
-  // check
+  // ---------- notation check ----------
   const CHECKS = [
     { re: /(?<!…)…(?!…)/g, msg: '三点リーダーは「……」と２つ続けて使います' },
     { re: /・{2,}|\.{3,}|。{2,}/g, msg: '「……」（三点リーダー２つ）を使いましょう' },
@@ -1050,6 +1325,8 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
   }
   function renderCheck() {
     const ul = $('#checkList');
+    if (!ul) return;
+    ul.textContent = '';
     const text = ta.value;
     const hits = runChecks(text);
     if (!hits.length) { ul.innerHTML = '<li class="ok-note">気になる箇所は見つかりませんでした。</li>'; return; }
@@ -1061,24 +1338,24 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'hit';
       b.dataset.s = h.start; b.dataset.e = h.end;
-      const ls = lineStarts[lineOf(h.start) - 1];
+      const line = lineOf(h.start);
+      const ls = lineStarts[line - 1];
       const nl = text.indexOf('\n', h.start);
       const le = nl === -1 ? text.length : nl;
       const a = Math.max(ls, h.start - 10), z = Math.min(le, h.end + 10);
       const markEnd = h.whole ? Math.min(h.end, h.start + 20) : h.end;
-      b.innerHTML = `<span class="where">${lineOf(h.start)}段落目</span><span class="msg">${esc(h.msg)}</span>`
+      b.innerHTML = `<span class="where">${line}段落目</span><span class="msg">${esc(h.msg)}</span>`
         + `<span class="snip">${a > ls ? '…' : ''}${esc(text.slice(a, h.start))}<mark>${esc(text.slice(h.start, markEnd) || '␣')}</mark>${esc(text.slice(markEnd, Math.max(markEnd, z)))}${z < le ? '…' : ''}</span>`;
-      li.append(b); ul.append(li);
+      li.append(b);
+      ul.append(li);
     }
     ul.onclick = (e) => {
       const b = e.target.closest('.hit');
       if (b) selectRange(Number(b.dataset.s), Number(b.dataset.e));
     };
   }
-  let checkTimer = null;
-  ta.addEventListener('input', () => { if (panel === 'check') { clearTimeout(checkTimer); checkTimer = setTimeout(renderCheck, 600); } });
 
-  // settings
+  // ---------- settings ----------
   function setupSettings() {
     const s = state.settings;
     const bind = (id, key, parse, label) => {
@@ -1089,19 +1366,18 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
       el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
         setSetting(key, el.type === 'checkbox' ? el.checked : parse(el.value));
         show();
-        if (key === 'target') renderStats();
       });
     };
     bind('setFont', 'font', String);
     bind('setFs', 'fs', Number, v => v + 'px');
     bind('setLh', 'lh', Number, v => Number(v).toFixed(1));
     bind('setLc', 'lineChars', Number, v => v + '字');
-    bind('setTarget', 'target', v => Math.max(0, Number(v) || 0));
     bind('setIndent', 'autoIndent', Boolean);
+    bind('setDim', 'dimWhileTyping', Boolean);
     bind('setTcy', 'tcy', Boolean);
   }
 
-  // file
+  // ---------- export / import ----------
   async function saveFile(filename, text) {
     const c = window.claude;
     const dl = c && typeof c.use === 'function' ? await c.use('downloads') : null;
@@ -1121,10 +1397,9 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
   const stamp = () => new Date().toISOString().slice(0, 10);
 
   function setupFile() {
-    const kind = cloud.mode === 'cloud'
+    $('#storageNote').textContent = cloud.mode === 'cloud'
       ? '原稿は claude.ai のあなたのアカウントに保存され、ほかの人には見えません。'
       : '原稿はこのブラウザに保存されています。ブラウザのデータを消すと失われるため、ときどきバックアップを書き出してください。';
-    $('#storageNote').textContent = kind;
     $('#expChapter').addEventListener('click', () => { const ch = cur(); saveFile(safeName(ch.title) + '.txt', ch.body); });
     $('#expAll').addEventListener('click', () => {
       const text = state.title + '\n\n\n' + state.chapters.map(c => c.title + '\n\n' + c.body).join('\n\n\n') + '\n';
@@ -1152,17 +1427,18 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
         try { data = JSON.parse(text); } catch { data = null; }
         if (!data || data.app !== 'genkocho' || !Array.isArray(data.chapters) || !data.chapters.length) { toast('原稿帳のバックアップファイルではありません'); return; }
         const box = $('#importConfirm');
-        box.innerHTML = '';
+        box.textContent = '';
         const div = document.createElement('div'); div.className = 'confirm-box';
         const p = document.createElement('span');
         p.textContent = `「${data.title || '無題'}」（${data.chapters.length}章）で、いまの原稿をすべて置き換えます。`;
         const row = document.createElement('div'); row.className = 'row';
-        row.innerHTML = '<button type="button" class="btn danger solid" data-r="yes">置き換える</button><button type="button" class="btn" data-r="no">やめる</button>';
-        div.append(p, row); box.append(div);
+        row.innerHTML = '<button type="button" class="btn danger" data-r="yes">置き換える</button><button type="button" class="btn" data-r="no">やめる</button>';
+        div.append(p, row);
+        box.append(div);
         row.addEventListener('click', (ev) => {
           const r = ev.target.closest('[data-r]');
           if (!r) return;
-          box.innerHTML = '';
+          box.textContent = '';
           if (r.dataset.r === 'yes') restoreBackup(data);
         });
         return;
@@ -1170,7 +1446,8 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
       const id = newId();
       const ch = { id, title: file.name.replace(/\.[^.]+$/, ''), body: text, updatedAt: Date.now() };
       state.chapters.push(ch);
-      touchChapter(ch); touchMeta();
+      touchChapter(ch);
+      touchMeta();
       openChapter(id);
       toast(`「${ch.title}」を章として追加しました`);
     });
@@ -1189,40 +1466,50 @@ body.hide-sidebar #sidebar { visibility: hidden; padding: 0; border: 0; }
       return { id, title: String(c.title ?? ''), body: String(c.body ?? ''), updatedAt: now };
     });
     state.currentId = state.chapters[0].id;
+    state.carets = {};
     for (const id of oldIds) if (!seen.has(id)) markPending(id);
     state.chapters.forEach(c => markPending(c.id));
     touchMeta();
     countCache.clear();
-    renderAll();
+    renderAll(false);
     toast('バックアップから復元しました');
   }
 
-  // ---------- misc ----------
+  // ---------- toast ----------
   let toastTimer = null;
-  function toast(msg) {
-    const t = $('#toast');
-    t.textContent = msg; t.hidden = false;
+  function toast(msg, actLabel, actFn) {
+    const t = $('#toast'), act = $('#toastAct');
+    $('#toastMsg').textContent = msg;
+    act.hidden = !actLabel;
+    act.textContent = actLabel || '';
+    act.onclick = actLabel ? () => { t.hidden = true; actFn(); } : null;
+    t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+    toastTimer = setTimeout(() => { t.hidden = true; }, actLabel ? 7000 : 2800);
   }
 
+  // ---------- keyboard ----------
   document.addEventListener('keydown', (e) => {
     const mod = e.ctrlKey || e.metaKey;
-    if (mod && e.key.toLowerCase() === 's') {
-      e.preventDefault(); saveLocalNow(); flush(); toast('保存しました');
-    } else if (mod && e.key.toLowerCase() === 'f') {
-      e.preventDefault(); openPanel('search');
-    } else if (e.key === 'Escape' && !e.isComposing) {
-      if (document.body.classList.contains('show-sidebar')) document.body.classList.remove('show-sidebar');
+    const k = e.key.toLowerCase();
+    if (mod && k === 's') { e.preventDefault(); saveLocalNow(); flush(); toast('保存しました'); }
+    else if (mod && k === 'f') { e.preventDefault(); openFind(); }
+    else if ((mod && k === 'g') || e.key === 'F3') { e.preventDefault(); if (findbar.hidden) openFind(); else findStep(e.shiftKey ? -1 : 1); }
+    else if (e.key === 'Escape' && !e.isComposing) {
+      if (openPop) { const b = openPop.btn; closePop(); b.focus(); }
+      else if (drawerOpen()) { setDrawer(false); $('#btnDrawer').focus(); }
+      else if (!findbar.hidden) closeFind();
       else if (panel) openPanel(null);
+      else return;
+      e.preventDefault();
     }
   });
 
   window.addEventListener('beforeunload', () => { saveLocalNow(); flush(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { saveLocalNow(); flush(); } });
 
-  renderAll();
   setView('edit');
+  renderAll(true);
   updateSaveState();
   initCloud();
 })();
