@@ -907,14 +907,29 @@ body.ios-vcaret #editor { caret-color: transparent; }
     const { i, k } = locate(off);
     const el = editor.children[i];
     if (!el) return [editor, editor.childNodes.length];
-    let rest = k, last = null;
+    return pointIn(el, k);
+  }
+  // The text piece and offset for character position k of a paragraph.
+  function pointIn(el, k) {
+    let last = null;
     for (const c of el.childNodes) {
       if (c.nodeType !== 3) continue;
-      if (rest <= c.length) return [c, rest];
-      rest -= c.length;
+      if (k <= c.length) return [c, k];
+      k -= c.length;
       last = c;
     }
     return last ? [last, last.length] : [el, 0];
+  }
+  // The paragraph holding a node, and a DOM position as a character offset inside its paragraph.
+  function blockOf(node) {
+    while (node && node.parentNode !== editor) node = node.parentNode;
+    return node && node.nodeType === 1 ? node : null;
+  }
+  function offsetIn(el, node, off) {
+    const r = document.createRange();
+    r.setStart(el, 0);
+    r.setEnd(node, off);
+    return r.toString().length;
   }
   // The text piece holding character k of a paragraph, and the offset inside it.
   function charAt(el, k) {
@@ -1282,6 +1297,8 @@ body.ios-vcaret #editor { caret-color: transparent; }
     if (inputType === 'insertText' && data === ' ' && headingShortcut()) kind = 'format';
     commit(kind, before);
     contentChanged();
+    const s = getSel();
+    if (s) { lastSel = s; state.caret = s.start; }
   }
 
   editor.addEventListener('input', (e) => {
@@ -1426,8 +1443,8 @@ body.ios-vcaret #editor { caret-color: transparent; }
 
   document.addEventListener('selectionchange', () => {
     scheduleFakeCaret();
-    if (Date.now() < kbSettleUntil && document.activeElement === editor) requestAnimationFrame(revealCaret);
     if (composing) return;
+    if (Date.now() < kbSettleUntil && document.activeElement === editor) requestAnimationFrame(revealCaret);
     const s = getSel();
     if (!s) { if (document.activeElement !== editor) $('#cntSel').hidden = true; return; }
     lastSel = s;
@@ -1993,7 +2010,12 @@ body.ios-vcaret #editor { caret-color: transparent; }
     if (vv && vv.height < h - 120) return vv.offsetTop + vv.height;
     return Math.max(h * 0.45, h - 400);
   }
+  // The text is never resized or scrolled while a conversion is open (the iPhone may drop or misplace
+  // it); that waits until the conversion ends.
+  let fitLater = false;
+  editor.addEventListener('compositionend', () => { if (fitLater) { fitLater = false; fitEditArea(); } });
   function fitEditArea() {
+    if (composing) { fitLater = true; return; }
     const on = isTouch && document.body.classList.contains('mobile') && document.activeElement === editor;
     const was = document.body.classList.contains('kb');
     if (on) {
@@ -2009,6 +2031,7 @@ body.ios-vcaret #editor { caret-color: transparent; }
   }
   let kbSettleUntil = 0;
   function revealCaret() {
+    if (composing) return;
     const s = getSel() || lastSel;
     scrollToRange(rangeAt(s.start, s.end));
     scheduleFakeCaret();
@@ -2022,32 +2045,63 @@ body.ios-vcaret #editor { caret-color: transparent; }
   if (vv) vv.addEventListener('resize', fitEditArea);
 
   // In vertical writing the iPhone draws its cursor sideways, beside the line. Hide it there and draw
-  // a horizontal one between the characters instead.
-  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  // a horizontal one between the characters instead. The iPhone does not report every caret move
+  // (not while a conversion is open, in particular), so while writing the position is also re-checked
+  // a few times a second.
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) || CSS.supports('-webkit-touch-callout', 'none');
   const fakeCaret = $('#fakeCaret');
-  let fakeQueued = false;
+  let fakeQueued = false, caretTimer = 0, caretAt = '';
   function scheduleFakeCaret() {
-    if (!isIOS || fakeQueued) return;
+    if (!isIOS) return;
+    // Writing just started: draw now, which also starts the regular checks.
+    if (!caretTimer && document.activeElement === editor && state.settings.vertical && viewMode === 'edit') updateFakeCaret();
+    if (fakeQueued) return;
     fakeQueued = true;
     requestAnimationFrame(() => { fakeQueued = false; updateFakeCaret(); });
   }
+  // Where an open conversion started. The selection may stay there while the unconfirmed text grows
+  // after it; the cursor then goes after that text, where the next character will appear.
+  let compAt = null;
+  editor.addEventListener('compositionstart', () => {
+    const sel = window.getSelection();
+    const el = sel.rangeCount && sel.isCollapsed ? blockOf(sel.anchorNode) : null;
+    compAt = el ? { el, k: offsetIn(el, sel.anchorNode, sel.anchorOffset), len: el.textContent.length } : null;
+    scheduleFakeCaret();
+  });
+  editor.addEventListener('compositionend', () => { compAt = null; scheduleFakeCaret(); });
+  function hideFakeCaret() { fakeCaret.hidden = true; caretAt = ''; }
   function updateFakeCaret() {
     const active = isIOS && state.settings.vertical && viewMode === 'edit';
     document.body.classList.toggle('ios-vcaret', active);
+    const live = active && document.activeElement === editor;
+    if (live && !caretTimer) caretTimer = setInterval(updateFakeCaret, 150);
+    else if (!live && caretTimer) { clearInterval(caretTimer); caretTimer = 0; }
     const sel = window.getSelection();
-    let c = null;
-    if (active && document.activeElement === editor && sel.rangeCount && sel.isCollapsed && editor.contains(sel.anchorNode)) c = caretBox(sel.anchorNode, sel.anchorOffset);
-    if (!c) { fakeCaret.hidden = true; return; }
+    let c = null, node = null, off = 0;
+    if (live && sel.rangeCount && sel.isCollapsed && editor.contains(sel.anchorNode)) {
+      node = sel.anchorNode; off = sel.anchorOffset;
+      const el = compAt && composing && compAt.el.isConnected ? compAt.el : null;
+      if (el && blockOf(node) === el && offsetIn(el, node, off) === compAt.k) {
+        const grown = el.textContent.length - compAt.len;
+        if (grown > 0) [node, off] = pointIn(el, compAt.k + grown);
+      }
+      c = caretBox(node, off);
+    }
+    if (!c) { hideFakeCaret(); return; }
     const st = stage.getBoundingClientRect(), ed = editor.getBoundingClientRect(), b = c.box;
-    const fs = parseFloat(getComputedStyle(c.empty ? editor : (sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentNode : sel.anchorNode)).fontSize) || 18;
+    const fs = parseFloat(getComputedStyle(node.nodeType === 3 ? node.parentNode : node).fontSize) || 18;
     const cx = (b.left + b.right) / 2;
-    const w = c.empty ? fs : Math.max(8, b.right - b.left);
     const y = c.empty ? b.top + 2 : (c.after ? b.bottom : b.top);
-    if (cx < ed.left || cx > ed.right || y < ed.top || y > ed.bottom) { fakeCaret.hidden = true; return; }
-    fakeCaret.style.left = (cx - w / 2 - st.left) + 'px';
-    fakeCaret.style.top = (y - st.top - 1) + 'px';
-    fakeCaret.style.width = w + 'px';
+    if (cx < ed.left || cx > ed.right || y < ed.top || y > ed.bottom) { hideFakeCaret(); return; }
+    const left = Math.round((cx - fs / 2 - st.left) * 2) / 2, top = Math.round((y - st.top - 1) * 2) / 2;
+    const at = left + ',' + top + ',' + fs;
+    if (at === caretAt) return;
+    caretAt = at;
+    fakeCaret.style.left = left + 'px';
+    fakeCaret.style.top = top + 'px';
+    fakeCaret.style.width = fs + 'px';
     fakeCaret.hidden = false;
+    // Restart the blink so the cursor stays visible while it moves.
     fakeCaret.style.animation = 'none';
     void fakeCaret.offsetWidth;
     fakeCaret.style.animation = '';
