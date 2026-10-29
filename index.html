@@ -51,18 +51,21 @@ body {
   font-family: var(--f-ui); font-size: 14px; line-height: 1.6;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
+button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html, body { overscroll-behavior: none; }
 :focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
 svg { display: block; }
 
 #app {
-  height: 100%;
-  display: grid; grid-template-rows: auto auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr);
+  position: relative; height: 100%;
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 #bar { grid-row: 1; }
 #findbar { grid-row: 2; }
 .main { grid-row: 3; }
+#mbar { grid-row: 4; }
 
 /* ---------- the one bar ---------- */
 .bar {
@@ -145,7 +148,7 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
 }
 .menu button:hover { background: var(--hover); }
 .menu kbd { font-family: var(--f-ui); font-size: 11px; color: var(--ink-soft); }
-.levels { right: auto; width: 250px; }
+.levels { right: auto; width: 250px; z-index: 32; }
 .levels button[aria-checked="true"] { background: var(--ai-soft); }
 .lv-sample { font-family: var(--f-head); font-weight: 700; line-height: 1.3; }
 .lv-sample.l1 { font-size: 21px; }
@@ -182,7 +185,7 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
 .writing {
   margin: 0; border: 0; outline: none; background: transparent; color: var(--ink);
   font-family: var(--f-text); font-size: var(--fs); line-height: var(--lh); font-kerning: none;
-  overflow: auto;
+  overflow: auto; overscroll-behavior: contain;
 }
 .vertical .writing {
   writing-mode: vertical-rl; padding: 1.5em 2em;
@@ -206,6 +209,7 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
 ::highlight(find) { background-color: rgb(232 168 40 / 0.32); }
 ::highlight(find-current) { background-color: rgb(236 150 20 / 0.85); color: #16130c; }
 ::highlight(check) { background-color: rgb(214 82 52 / 0.22); }
+::highlight(flash) { background-color: rgb(236 150 20 / 0.6); }
 
 .hint {
   position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
@@ -219,7 +223,7 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
 
 /* ---------- side panel (check / settings / file) ---------- */
 #panel {
-  width: 320px; min-height: 0; overflow: auto;
+  width: 320px; min-height: 0; overflow: auto; overscroll-behavior: contain;
   border-left: 1px solid var(--rule); padding: 14px 0 14px 16px; margin-left: 12px;
   display: flex; flex-direction: column; gap: 14px;
 }
@@ -264,7 +268,7 @@ body.typing .bar:hover, body.typing .bar:focus-within { opacity: 1; }
 /* ---------- outline drawer ---------- */
 .drawer {
   position: fixed; z-index: 40; top: 0; bottom: 0; left: 0; width: min(86vw, 320px);
-  display: flex; flex-direction: column; gap: 14px; overflow: auto;
+  display: flex; flex-direction: column; gap: 14px; overflow: auto; overscroll-behavior: contain;
   background: var(--paper); border-right: 1px solid var(--rule); box-shadow: 10px 0 30px -18px rgb(10 20 40 / 0.45);
   padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   transform: translateX(-104%); visibility: hidden;
@@ -317,20 +321,74 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
   .bar-tools { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
   .bar-tools::-webkit-scrollbar { display: none; }
 }
-@media (max-width: 640px) {
-  .cnt-genko, .save-text { display: none; }
-  .crumb-part:not(:last-child), .crumb-sep { display: none; }
-  .main { grid-template-columns: minmax(0, 1fr); }
-  .find-row { gap: 4px; }
-  .find-row input { flex-basis: 110px; max-width: none; }
-  .find-row .tbtn { padding: 0 7px; }
-  .find-count { min-width: 0; font-size: 11px; }
-  #panel {
-    position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; width: auto; max-height: 62%; margin: 0;
-    border-left: 0; border-top: 1px solid var(--rule); border-radius: 12px 12px 0 0;
-    background: var(--paper); box-shadow: 0 -10px 30px -14px rgb(10 20 40 / 0.4);
-    padding: 14px max(16px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
-  }
+/* ---------- phones: input tools sit at the bottom, right above the keyboard ---------- */
+.tool-group { flex: none; display: flex; align-items: center; gap: 4px; }
+.mbar { display: flex; align-items: center; gap: 4px; padding-block: 4px; border-top: 1px solid var(--rule); background: var(--sheet); }
+.mbar-scroll { flex: 1; min-width: 0; display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.mbar-scroll::-webkit-scrollbar { display: none; }
+.mbar-scroll.more { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
+.mbar-scroll .tool-group { gap: 2px; }
+.mbar-fixed { flex: none; display: flex; align-items: center; padding-left: 2px; border-left: 1px solid var(--rule); }
+.mbar .tbtn { padding: 0 7px; }
+.mbar .icon { width: 38px; }
+.mbar .level-btn { min-width: 0; gap: 3px; margin-right: 2px; }
+.mbar .sep { display: none; }
+.icon:disabled { opacity: 0.3; cursor: default; background: transparent; }
+.exit-preview { flex: 1; justify-content: center; background: var(--ai-soft); color: var(--ai); font-weight: 500; }
+body.previewing .mbar-scroll { display: none; }
+body:not(.mobile) .m-only { display: none !important; }
+body.mobile .bar { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "drawer title end"; }
+body.mobile .bar-tools { display: none; }
+body.mobile #btnFind { width: 42px; padding: 0; justify-content: center; }
+body.mobile .find-label, body.mobile .cnt-genko, body.mobile .save-text { display: none; }
+body.mobile .crumb-part:not(:last-child), body.mobile .crumb-sep { display: none; }
+body.mobile .main { grid-template-columns: minmax(0, 1fr); }
+body.mobile .vertical .writing { padding: 1em; height: min(100%, calc(var(--line-chars) * 1em + 2em + 18px)); }
+body.mobile .horizontal .writing { padding: 1.2em 0.3em; width: 100%; }
+body.mobile .find-row { gap: 4px; }
+body.mobile .find-row input { flex-basis: 110px; max-width: none; }
+body.mobile .find-row .tbtn { padding: 0 8px; }
+body.mobile .find-count { min-width: 0; font-size: 11px; }
+body.mobile #panel {
+  position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; width: auto; max-height: 62%; margin: 0;
+  border-left: 0; border-top: 1px solid var(--rule); border-radius: 12px 12px 0 0;
+  background: var(--paper); box-shadow: 0 -10px 30px -14px rgb(10 20 40 / 0.4);
+  padding: 14px max(16px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.sheet-handle { display: none; }
+body.mobile .sheet-handle { display: block; position: relative; flex: none; align-self: center; width: 56px; height: 20px; margin: -10px 0 -8px; border: 0; background: transparent; cursor: pointer; }
+body.mobile .sheet-handle::before { content: ""; position: absolute; left: 10px; right: 10px; top: 8px; height: 4px; border-radius: 2px; background: var(--rule); }
+body.mobile .toast { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
+body.mobile.kb-open .toast { bottom: 64px; }
+body.mobile.kb-open .hint { display: none; }
+body.mobile.cramped .bar { display: none; }
+
+/* Touch screens: the app follows the visible area, so the keyboard never covers the text. */
+body.touch #app {
+  position: fixed; left: 0; right: 0; top: 0;
+  height: var(--app-h, 100%);
+  transform: translateY(var(--app-y, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+body.touch.kb-open #app { padding-bottom: 0; }
+
+@media (pointer: coarse) {
+  input, select, textarea, .work-title, .find-row input, .goal-set input, .field select { font-size: 16px; }
+  .tbtn { height: 40px; }
+  .seg .tbtn { height: 34px; padding: 0 12px; }
+  .icon { width: 42px; height: 42px; }
+  .count, .crumb { height: 42px; }
+  .menu button { padding: 12px; font-size: 14px; }
+  .toc-item { padding-block: 11px; }
+  .hit { padding: 10px 12px; }
+  .btn { height: 40px; }
+  .field select, .find-row input, .work-title { height: 42px; }
+  .goal-set input { width: 110px; height: 36px; }
+  .field input[type="range"] { height: 32px; }
+  .check { padding-block: 4px; }
+  .levels kbd { display: none; }
+  .tbtn:active, .icon:active, .count:active, .crumb:active, .toc-item:active, .menu button:active, .hit:active, .btn:active { background: var(--ai-soft); }
 }
 @media (prefers-reduced-motion: reduce) {
   .drawer, body.drawer-open .drawer, .bar, .goal-line i { transition: none; }
@@ -345,23 +403,27 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     </button>
     <button type="button" class="crumb" id="crumb" title="目次を開く"></button>
     <div class="bar-tools" id="barTools" role="toolbar" aria-label="執筆ツール">
-      <button type="button" class="tbtn level-btn" id="btnLevel" aria-haspopup="menu" aria-expanded="false" title="段落の種類（見出しにすると目次に章として並びます）">
-        <span id="levelLabel">本文</span>
-        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
-      </button>
-      <span class="sep" aria-hidden="true"></span>
-      <button type="button" class="tbtn" data-ins="ruby" title="ルビ：文字を選んでから押す。漢字の直後なら、そのまま押して読みを入力">ルビ</button>
-      <button type="button" class="tbtn" data-ins="bouten" title="傍点：文字を選んでから押す">傍点</button>
-      <button type="button" class="tbtn glyph" data-ins="dash" title="ダッシュ（――）" aria-label="ダッシュを入力">――</button>
-      <button type="button" class="tbtn glyph" data-ins="leader" title="三点リーダー（……）" aria-label="三点リーダーを入力">……</button>
-      <span class="sep" aria-hidden="true"></span>
-      <div class="seg" role="group" aria-label="組方向">
-        <button type="button" class="tbtn" id="btnVertical" aria-pressed="true" title="縦書き">縦</button>
-        <button type="button" class="tbtn" id="btnHorizontal" aria-pressed="false" title="横書き">横</button>
+      <div class="tool-group" id="toolInput">
+        <button type="button" class="tbtn level-btn" id="btnLevel" aria-haspopup="menu" aria-expanded="false" title="段落の種類（見出しにすると目次に章として並びます）">
+          <span id="levelLabel">本文</span>
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+        </button>
+        <span class="sep" aria-hidden="true"></span>
+        <button type="button" class="tbtn" data-ins="ruby" title="ルビ：文字を選んでから押す。漢字の直後なら、そのまま押して読みを入力">ルビ</button>
+        <button type="button" class="tbtn" data-ins="bouten" title="傍点：文字を選んでから押す">傍点</button>
+        <button type="button" class="tbtn glyph" data-ins="dash" title="ダッシュ（――）" aria-label="ダッシュを入力">――</button>
+        <button type="button" class="tbtn glyph" data-ins="leader" title="三点リーダー（……）" aria-label="三点リーダーを入力">……</button>
       </div>
-      <button type="button" class="tbtn" id="btnPreview" aria-pressed="false" title="ルビや傍点を表示して確認">プレビュー</button>
-      <button type="button" class="tbtn" id="btnFind" aria-pressed="false" title="検索・置換（Ctrl+F）">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>検索
+      <div class="tool-group" id="toolView">
+        <span class="sep" aria-hidden="true"></span>
+        <div class="seg" role="group" aria-label="組方向">
+          <button type="button" class="tbtn" id="btnVertical" aria-pressed="true" title="縦書き">縦</button>
+          <button type="button" class="tbtn" id="btnHorizontal" aria-pressed="false" title="横書き">横</button>
+        </div>
+        <button type="button" class="tbtn" id="btnPreview" aria-pressed="false" title="ルビや傍点を表示して確認">プレビュー</button>
+      </div>
+      <button type="button" class="tbtn" id="btnFind" aria-pressed="false" title="検索・置換（Ctrl+F）" aria-label="検索・置換">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span class="find-label">検索</span>
       </button>
     </div>
     <div class="bar-end">
@@ -386,13 +448,15 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
           <span class="stat-main"><b id="stTotal">0</b> 字</span>
           <span class="stat-sub">原稿用紙 約 <span id="stTotalGenko">0</span> 枚 ・ 見出しは数えません</span>
         </div>
-        <label class="goal-set">1章の目標 <input type="number" id="targetInput" min="0" step="500" inputmode="numeric"> 字</label>
+        <label class="goal-set">1章の目標 <input type="number" id="targetInput" min="0" step="500" inputmode="numeric" enterkeyhint="done"> 字</label>
         <div class="goal-bar" id="goalBar"><i id="goalFill"></i></div>
         <span class="stat-sub" id="goalText"></span>
         <p class="save-detail" id="saveDetail"></p>
       </div>
 
       <div class="pop menu" id="menuPop" role="menu" hidden>
+        <button type="button" role="menuitem" class="m-only" id="mnuDirection"><span id="mnuDirectionLabel">横書きにする</span></button>
+        <button type="button" role="menuitem" class="m-only" id="mnuPreview"><span id="mnuPreviewLabel">プレビュー（ルビを表示）</span></button>
         <button type="button" role="menuitem" data-open="check"><span>表記チェック</span></button>
         <button type="button" role="menuitem" data-open="settings"><span>表示設定</span></button>
         <button type="button" role="menuitem" data-open="file"><span>書き出し・読み込み</span></button>
@@ -400,19 +464,12 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
       </div>
     </div>
 
-    <div class="pop menu levels" id="levelPop" role="menu" aria-label="段落の種類" hidden>
-      <button type="button" role="menuitemradio" data-level="1" aria-checked="false"><span class="lv-sample l1">大見出し</span><kbd>Ctrl+Alt+1</kbd></button>
-      <button type="button" role="menuitemradio" data-level="2" aria-checked="false"><span class="lv-sample l2">中見出し</span><kbd>Ctrl+Alt+2</kbd></button>
-      <button type="button" role="menuitemradio" data-level="3" aria-checked="false"><span class="lv-sample l3">小見出し</span><kbd>Ctrl+Alt+3</kbd></button>
-      <button type="button" role="menuitemradio" data-level="0" aria-checked="true"><span class="lv-sample l0">本文</span><kbd>Ctrl+Alt+0</kbd></button>
-      <p class="muted">見出しは ☰ の目次に章として並びます。行頭で「# 」と打っても見出しになります。</p>
-    </div>
     <div class="goal-line" id="goalLine" aria-hidden="true"><i id="goalLineFill"></i></div>
   </header>
 
   <div class="findbar" id="findbar" hidden>
     <div class="find-row">
-      <input type="search" id="findQ" placeholder="検索（Enter で次へ）" aria-label="検索する文字" autocomplete="off">
+      <input type="search" id="findQ" placeholder="検索（Enter で次へ）" aria-label="検索する文字" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
       <span class="find-count" id="findCount" aria-live="polite"></span>
       <button type="button" class="tbtn" id="findPrev">前へ</button>
       <button type="button" class="tbtn" id="findNext">次へ</button>
@@ -422,7 +479,7 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
       </button>
     </div>
     <div class="find-row" id="replRow" hidden>
-      <input type="text" id="replQ" placeholder="置き換える文字" aria-label="置き換える文字" autocomplete="off">
+      <input type="text" id="replQ" placeholder="置き換える文字" aria-label="置き換える文字" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
       <button type="button" class="tbtn" id="replOne">置換して次へ</button>
       <button type="button" class="tbtn" id="replAll">すべて置換</button>
     </div>
@@ -442,6 +499,29 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     <aside id="panel" hidden></aside>
   </div>
 
+  <div class="mbar" id="mbar" hidden>
+    <div class="mbar-scroll" id="mbarScroll" role="toolbar" aria-label="入力補助"></div>
+    <button type="button" class="tbtn exit-preview" id="btnExitPreview" hidden>プレビューを終了</button>
+    <div class="mbar-fixed">
+      <button type="button" class="icon" id="btnUndo" data-keep aria-label="元に戻す" title="元に戻す" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6 5 10l4 4"/><path d="M5 10h9.5a4.5 4.5 0 0 1 0 9H12"/></svg>
+      </button>
+      <button type="button" class="icon" id="btnRedo" data-keep aria-label="やり直す" title="やり直す" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6 4 4-4 4"/><path d="M19 10H9.5a4.5 4.5 0 0 0 0 9H12"/></svg>
+      </button>
+      <button type="button" class="icon" id="btnKbClose" data-keep aria-label="キーボードを閉じる" title="キーボードを閉じる" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="11" rx="2"/><path d="M7 8h.01M11 8h.01M15 8h.01M8 11.5h8"/><path d="m9 18.5 3 2.5 3-2.5"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="pop menu levels" id="levelPop" role="menu" aria-label="段落の種類" hidden>
+    <button type="button" role="menuitemradio" data-level="1" aria-checked="false"><span class="lv-sample l1">大見出し</span><kbd>Ctrl+Alt+1</kbd></button>
+    <button type="button" role="menuitemradio" data-level="2" aria-checked="false"><span class="lv-sample l2">中見出し</span><kbd>Ctrl+Alt+2</kbd></button>
+    <button type="button" role="menuitemradio" data-level="3" aria-checked="false"><span class="lv-sample l3">小見出し</span><kbd>Ctrl+Alt+3</kbd></button>
+    <button type="button" role="menuitemradio" data-level="0" aria-checked="true"><span class="lv-sample l0">本文</span><kbd>Ctrl+Alt+0</kbd></button>
+    <p class="muted">見出しは ☰ の目次に章として並びます。行頭で「# 」と打っても見出しになります。</p>
+  </div>
   <div class="scrim" id="scrim" hidden></div>
   <aside class="drawer" id="drawer" aria-label="作品と目次">
     <div class="drawer-head">
@@ -450,7 +530,7 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </div>
-    <input id="workTitle" class="work-title" type="text" aria-label="作品タイトル" placeholder="作品タイトル" autocomplete="off">
+    <input id="workTitle" class="work-title" type="text" aria-label="作品タイトル" placeholder="作品タイトル" autocomplete="off" enterkeyhint="done">
     <div class="label">目次</div>
     <ol class="toc" id="toc"></ol>
     <p class="toc-empty" id="tocEmpty" hidden>見出しはまだありません。行を選んでバーの「本文」を「大見出し」「中見出し」「小見出し」に変えると、ここに章として並びます。</p>
@@ -866,7 +946,12 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     hist.lastTime = now;
     state.md = md;
     touch();
+    updateUndoButtons();
     return true;
+  }
+  function updateUndoButtons() {
+    $('#btnUndo').disabled = !hist.undo.length;
+    $('#btnRedo').disabled = !hist.redo.length;
   }
   function restore(md, sel) {
     blocks = fromMd(md);
@@ -878,8 +963,11 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     touch();
     if (viewMode !== 'edit') setView('edit');
     const s = sel || lastSel;
-    setSel(s.start, s.end);
+    // On a phone, undoing from the toolbar while reading should not pop up the keyboard.
+    if (!isTouch || document.activeElement === editor) setSel(s.start, s.end);
+    else reveal(s.start, s.end, false);
     contentChanged();
+    updateUndoButtons();
   }
   function undo() {
     const g = hist.undo.pop();
@@ -957,9 +1045,24 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     contentChanged();
   }
 
+  // With the caret right before the 》 of a ruby or 傍点 still being typed, step past the closing marks.
+  function exitBrackets(s) {
+    if (!s || s.start !== s.end) return false;
+    const { i, k } = locate(s.start);
+    const t = blocks[i].text;
+    if (t[k] !== '》') return false;
+    const open = t.lastIndexOf('《', k - 1), close = k > 0 ? t.lastIndexOf('》', k - 1) : -1;
+    if (open < 0 || open < close) return false;
+    let j = k;
+    while (j < t.length && t[j] === '》' && j - k < 2) j++;
+    setSel(starts[i] + j);
+    return true;
+  }
+
   function handleEnter(lineBreak) {
     const s = getSel();
     if (!s) return;
+    if (!lineBreak && exitBrackets(s)) return;
     if (s.end > s.start) applyEdit(s.start, s.end, '', { kind: 'delete', before: s });
     const { i, k } = locate(s.start);
     const b = blocks[i];
@@ -1029,6 +1132,24 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     indentEl = null;
     return true;
   }
+  // Some mobile browsers do not let a page take over the Enter key. When the browser split the
+  // paragraph itself, give the new paragraph the same treatment our own Enter gives it.
+  function fixNativeEnter() {
+    const s = getSel();
+    if (!s) return;
+    const { i, k } = locate(s.start);
+    const b = blocks[i], prev = blocks[i - 1];
+    if (!prev || k !== 0) return;
+    let level = b.level, text = b.text;
+    if (level && level === prev.level && prev.text && !text) level = 0;
+    let ck = 0;
+    if (!level && state.settings.autoIndent && !/^[　 ]/.test(text) && !(text && OPEN_BRACKETS.includes(text[0]))) { text = '　' + text; ck = 1; }
+    if (level === b.level && text === b.text) return;
+    patchBlocks(i, 1, [{ level, text }]);
+    indentEl = ck ? editor.children[i] : null;
+    setSel(starts[i] + ck, starts[i] + ck, { scroll: false });
+  }
+  let nativeEnter = false;
   function afterUserInput(inputType, data) {
     const before = lastSel;
     if (!normalizeDom()) syncFromDom();
@@ -1037,6 +1158,7 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
       patchBlocks(0, 1, [{ level: 0, text: '' }]);
       setSel(0, 0, { scroll: false });
     }
+    if (nativeEnter) { nativeEnter = false; fixNativeEnter(); }
     let kind = /^delete/.test(inputType || '') ? 'delete' : 'typing';
     fixBracketIndent();
     if (inputType === 'insertText' && data === ' ' && headingShortcut()) kind = 'format';
@@ -1059,6 +1181,7 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     if (t === 'historyRedo') { e.preventDefault(); redo(); return; }
     if (t === 'insertParagraph' || t === 'insertLineBreak') {
       if (e.isComposing || composing) return;
+      if (!e.cancelable) { nativeEnter = t === 'insertParagraph'; return; }
       e.preventDefault();
       if (!HL && findArmed && !findbar.hidden) {
         const s = getSel();
@@ -1081,7 +1204,16 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     else if (e.key !== 'Shift' && e.key !== 'Enter') findArmed = false;
   });
   editor.addEventListener('pointerdown', () => { findArmed = false; });
-  editor.addEventListener('blur', () => { document.body.classList.remove('typing'); });
+  editor.addEventListener('focus', () => {
+    document.body.classList.add('editing');
+    $('#btnKbClose').hidden = !isTouch;
+    updateMbarMore();
+  });
+  editor.addEventListener('blur', () => {
+    document.body.classList.remove('typing', 'editing');
+    $('#btnKbClose').hidden = true;
+    updateMbarMore();
+  });
   editor.addEventListener('dragstart', (e) => e.preventDefault());
   editor.addEventListener('drop', (e) => e.preventDefault());
 
@@ -1147,6 +1279,8 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     const s = getSel() || lastSel;
     const sel = plainText().slice(s.start, s.end);
     if ((kind === 'ruby' || kind === 'bouten') && sel.includes('\n')) { toast(kind === 'ruby' ? 'ルビは1行の中の文字に振ってください' : '傍点は1行の中の文字に付けてください'); return; }
+    // Pressed again after typing the reading: move out of 《》 and keep writing.
+    if ((kind === 'ruby' || kind === 'bouten') && !sel && exitBrackets(s)) return;
     switch (kind) {
       case 'ruby':
         if (sel) applyEdit(s.start, s.end, '｜' + sel + '《》', { caret: s.start + sel.length + 2, before: s });
@@ -1158,12 +1292,13 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
       case 'leader': applyEdit(s.start, s.end, '……', { before: s }); break;
     }
   }
-  const keepFocus = (e) => { if (e.target.closest('[data-ins], #btnLevel, #levelPop button')) e.preventDefault(); };
-  for (const el of [$('#barTools'), $('#levelPop')]) {
+  // Toolbar buttons must not take focus away from the text, or the selection and the phone keyboard go away.
+  const keepFocus = (e) => { if (e.target.closest('[data-ins], [data-keep], #btnLevel, #levelPop button')) e.preventDefault(); };
+  for (const el of [$('#toolInput'), $('#levelPop'), $('#mbar')]) {
     el.addEventListener('pointerdown', keepFocus);
     el.addEventListener('mousedown', keepFocus);
   }
-  $('#barTools').addEventListener('click', (e) => { const b = e.target.closest('[data-ins]'); if (b && !b.disabled) ins(b.dataset.ins); });
+  $('#toolInput').addEventListener('click', (e) => { const b = e.target.closest('[data-ins]'); if (b && !b.disabled) ins(b.dataset.ins); });
 
   document.addEventListener('selectionchange', () => {
     if (composing) return;
@@ -1324,7 +1459,8 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
   function applySettings() {
     const s = state.settings;
     const root = document.documentElement.style;
-    root.setProperty('--fs', s.fs + 'px');
+    // iOS zooms the page into any text field smaller than 16px, so phones never go below that.
+    root.setProperty('--fs', (isTouch ? Math.max(16, s.fs) : s.fs) + 'px');
     root.setProperty('--lh', String(s.lh));
     root.setProperty('--line-chars', String(s.lineChars));
     root.setProperty('--f-text', s.font === 'gothic' ? 'var(--f-ui)' : 'var(--f-body)');
@@ -1354,6 +1490,7 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     blocks = fromMd(state.md);
     renderEditor();
     hist.undo = []; hist.redo = [];
+    updateUndoButtons();
     hist.lastMd = toMd(blocks);
     state.md = hist.lastMd;
     indentEl = null;
@@ -1586,8 +1723,8 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     if (open) {
       closePop();
       renderDrawer();
-      const c = $('#toc .is-current') || $('#toc .toc-item') || $('#workTitle');
-      if (c) c.focus({ preventScroll: true });
+      if (isTouch) { if (document.activeElement === editor) editor.blur(); }
+      else { const c = $('#toc .is-current') || $('#toc .toc-item') || $('#workTitle'); if (c) c.focus({ preventScroll: true }); }
     }
   }
   $('#btnDrawer').addEventListener('click', () => setDrawer(!drawerOpen()));
@@ -1595,6 +1732,9 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
   $('#drawerClose').addEventListener('click', () => setDrawer(false));
   $('#scrim').addEventListener('click', () => setDrawer(false));
   $('#workTitle').addEventListener('input', (e) => { state.title = e.target.value; touch(); updateDocTitle(); scheduleCaretUi(); });
+  for (const id of ['#workTitle', '#targetInput']) {
+    $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); e.currentTarget.blur(); } });
+  }
   $('#hintClose').addEventListener('click', () => {
     state.hintDismissed = true;
     saveLocalSoon();
@@ -1609,9 +1749,12 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     editor.hidden = mode !== 'edit';
     preview.hidden = mode !== 'preview';
     for (const b of document.querySelectorAll('[data-ins], #btnLevel')) b.disabled = mode !== 'edit';
+    document.body.classList.toggle('previewing', mode === 'preview');
+    $('#btnExitPreview').hidden = mode !== 'preview';
     if (mode === 'preview') renderPreview();
     scheduleCaretUi();
   }
+  $('#btnExitPreview').addEventListener('click', () => setView('edit'));
   $('#btnPreview').addEventListener('click', () => {
     if (viewMode === 'preview') { setView('edit'); if (!isTouch) setSel(lastSel.start, lastSel.end); }
     else setView('preview');
@@ -1637,15 +1780,19 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     btn.setAttribute('aria-expanded', 'true');
     openPop = { el, btn };
     if (popId === 'levelPop') {
-      const bar = $('#bar').getBoundingClientRect(), b = btn.getBoundingClientRect();
-      el.style.left = Math.max(0, Math.min(b.left - bar.left, bar.width - el.offsetWidth)) + 'px';
-      el.style.top = (b.bottom - bar.top + 6) + 'px';
+      // Opens downward from the top bar, upward from the bottom toolbar on phones.
+      const app = $('#app').getBoundingClientRect(), b = btn.getBoundingClientRect();
+      const viewH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      el.style.left = Math.max(16, Math.min(b.left - app.left, app.width - el.offsetWidth - 16)) + 'px';
+      el.style.top = (b.top > viewH / 2 ? b.top - app.top - el.offsetHeight - 6 : b.bottom - app.top + 6) + 'px';
     } else if (popId === 'statsPop') {
       renderStats();
       $('#targetInput').value = state.settings.target || '';
     } else {
-      const first = el.querySelector('button');
-      if (first) first.focus();
+      $('#mnuDirectionLabel').textContent = state.settings.vertical ? '横書きにする' : '縦書きにする';
+      $('#mnuPreviewLabel').textContent = viewMode === 'preview' ? 'プレビューを閉じる' : 'プレビュー（ルビを表示）';
+      const first = el.querySelector('button:not([hidden])');
+      if (first && !isTouch) first.focus();
     }
   }
   function closePop() {
@@ -1677,6 +1824,9 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     closePop();
     openPanel(b.dataset.open);
   });
+  $('#mnuDirection').addEventListener('click', () => { closePop(); setSetting('vertical', !state.settings.vertical); });
+  $('#mnuPreview').addEventListener('click', () => { closePop(); setView(viewMode === 'preview' ? 'edit' : 'preview'); });
+  $('#btnFull').hidden = !document.fullscreenEnabled;
   $('#btnFull').addEventListener('click', async () => {
     closePop();
     try {
@@ -1688,18 +1838,109 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     $('#fullLabel').textContent = document.fullscreenElement ? '全画面表示を終了' : '全画面表示';
   });
 
+  // ---------- phones ----------
+  $('#btnUndo').addEventListener('click', () => undo());
+  $('#btnRedo').addEventListener('click', () => redo());
+  $('#btnKbClose').addEventListener('click', () => editor.blur());
+  function updateMbarMore() {
+    const s = $('#mbarScroll');
+    s.classList.toggle('more', s.scrollWidth - s.scrollLeft - s.clientWidth > 4);
+  }
+  $('#mbarScroll').addEventListener('scroll', updateMbarMore, { passive: true });
+  // On narrow screens the input tools move to a toolbar at the bottom, within thumb reach and
+  // right above the keyboard; search joins the top bar, and 縦横・プレビュー go into the ⋯ menu.
+  const mobileQuery = window.matchMedia('(max-width: 760px), (pointer: coarse) and (max-height: 500px)');
+  function applyMobile() {
+    const mobile = mobileQuery.matches;
+    document.body.classList.toggle('mobile', mobile);
+    $('#mbar').hidden = !mobile;
+    if (mobile) {
+      $('#mbarScroll').append($('#toolInput'));
+      $('.bar-end').insertBefore($('#btnFind'), $('#btnMenu'));
+    } else {
+      $('#barTools').prepend($('#toolInput'));
+      $('#barTools').append($('#btnFind'));
+    }
+    closePop();
+    requestAnimationFrame(updateMbarMore);
+  }
+  mobileQuery.addEventListener('change', applyMobile);
+  window.addEventListener('resize', () => requestAnimationFrame(updateMbarMore));
+
+  // Fit the app to the part of the screen the keyboard leaves visible.
+  const vv = window.visualViewport;
+  let lastFit = '', fullH = 0, fullW = 0;
+  function fitViewport() {
+    if (!vv || Math.abs(vv.scale - 1) > 0.01) return;
+    const h = Math.round(vv.height), w = Math.round(vv.width), y = Math.round(vv.offsetTop);
+    if (w !== fullW || h > fullH) { fullW = w; fullH = h; }
+    const key = h + ':' + w + ':' + y;
+    if (key === lastFit) return;
+    lastFit = key;
+    const root = document.documentElement.style;
+    root.setProperty('--app-h', h + 'px');
+    root.setProperty('--app-y', y + 'px');
+    const typingSomewhere = document.activeElement && (document.activeElement === editor || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName));
+    document.body.classList.toggle('kb-open', fullH - h > 120);
+    document.body.classList.toggle('cramped', typingSomewhere && h < 300);
+    if (document.activeElement === editor) requestAnimationFrame(() => { const s = getSel(); if (s) scrollToRange(rangeAt(s.start, s.end)); });
+  }
+  if (isTouch) {
+    document.body.classList.add('touch');
+    if (vv) { vv.addEventListener('resize', fitViewport); vv.addEventListener('scroll', fitViewport); }
+  }
+
+  // Swipe the outline to the left, or the bottom sheet down, to close them.
+  function onSwipe(el, dir, act, canStart = () => true) {
+    let x = 0, y = 0, on = false;
+    el.addEventListener('touchstart', (e) => { on = e.touches.length === 1 && canStart(); if (on) { x = e.touches[0].clientX; y = e.touches[0].clientY; } }, { passive: true });
+    el.addEventListener('touchend', (e) => {
+      if (!on) return;
+      on = false;
+      const t = e.changedTouches[0], dx = t.clientX - x, dy = t.clientY - y;
+      if (dir === 'left' && dx < -60 && Math.abs(dy) < Math.abs(dx) * 0.6) act();
+      if (dir === 'down' && dy > 70 && Math.abs(dx) < dy * 0.6) act();
+    }, { passive: true });
+  }
+  onSwipe($('#drawer'), 'left', () => setDrawer(false));
+  onSwipe(panelEl, 'down', () => openPanel(null), () => document.body.classList.contains('mobile') && panelEl.scrollTop <= 0);
+
+  // Scroll to a spot and mark it briefly, without focusing the text (no keyboard on phones).
+  let flashTimer = null;
+  function reveal(a, b, mark = true) {
+    const len = plainLength();
+    a = Math.max(0, Math.min(a, len)); b = Math.max(a, Math.min(b, len));
+    lastSel = { start: a, end: b };
+    state.caret = a;
+    const r = rangeAt(a, b);
+    scrollToRange(r);
+    if (mark && HL && b > a) {
+      CSS.highlights.set('flash', new Highlight(r));
+      clearTimeout(flashTimer);
+      flashTimer = setTimeout(() => CSS.highlights.delete('flash'), 2500);
+    }
+    scheduleCaretUi();
+  }
+
   // ---------- side panel ----------
   panelEl.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) openPanel(null); });
   function openPanel(name) {
     if (panel === 'check' && name !== 'check' && HL) CSS.highlights.delete('check');
     panel = name;
     panelEl.hidden = !name;
-    if (name) renderPanel();
-    else if (!isTouch && viewMode === 'edit') setSel(lastSel.start, lastSel.end, { scroll: false });
+    if (name) {
+      if (isTouch && document.activeElement === editor) editor.blur();
+      renderPanel();
+    } else if (!isTouch && viewMode === 'edit') setSel(lastSel.start, lastSel.end, { scroll: false });
   }
   function renderPanel() {
     panelEl.textContent = '';
-    panelEl.append($('#tpl-' + panel).content.cloneNode(true));
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'sheet-handle';
+    handle.setAttribute('aria-label', '閉じる');
+    handle.dataset.close = '';
+    panelEl.append(handle, $('#tpl-' + panel).content.cloneNode(true));
     if (panel === 'check') renderCheck();
     else if (panel === 'settings') setupSettings();
     else if (panel === 'file') setupFile();
@@ -1773,8 +2014,12 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     clearFindPaint();
     $('#btnFind').setAttribute('aria-pressed', 'false');
     if (viewMode !== 'edit') return;
-    if (HL && m != null) setSel(m, m + n);
-    else if (!isTouch) setSel(lastSel.start, lastSel.end, { scroll: false });
+    if (isTouch) {
+      // Leave the found spot marked instead of focusing it, so closing search also closes the keyboard.
+      if (document.activeElement && document.activeElement !== editor) document.activeElement.blur();
+      if (m != null) reveal(m, m + n);
+    } else if (HL && m != null) setSel(m, m + n);
+    else setSel(lastSel.start, lastSel.end, { scroll: false });
   }
   function setReplace(on) {
     $('#replRow').hidden = !on;
@@ -1870,8 +2115,15 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
     ul.onclick = (e) => {
       const b = e.target.closest('.hit');
       if (!b) return;
+      const a = Number(b.dataset.s), z = Number(b.dataset.e);
       if (viewMode !== 'edit') setView('edit');
-      setSel(Number(b.dataset.s), Number(b.dataset.e));
+      if (!isTouch) { setSel(a, z); return; }
+      // On a phone the list covers the text: close it, show the spot, and offer a way back.
+      if (document.body.classList.contains('mobile')) {
+        openPanel(null);
+        toast('該当箇所に移動しました', '一覧に戻る', () => openPanel('check'));
+      }
+      reveal(a, z);
     };
   }
 
@@ -1889,7 +2141,8 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
       });
     };
     bind('setFont', 'font', String);
-    bind('setFs', 'fs', Number, v => v + 'px');
+    if (isTouch) $('#setFs').min = 16;
+    bind('setFs', 'fs', Number, v => (isTouch ? Math.max(16, v) : v) + 'px');
     bind('setLh', 'lh', Number, v => Number(v).toFixed(1));
     bind('setLc', 'lineChars', Number, v => v + '字');
     bind('setIndent', 'autoIndent', Boolean);
@@ -2063,6 +2316,8 @@ body.drawer-open .drawer { transform: none; visibility: visible; transition: tra
   window.addEventListener('beforeunload', () => { saveLocalNow(); flush(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { saveLocalNow(); flush(); } });
 
+  applyMobile();
+  if (isTouch) fitViewport();
   setView('edit');
   loadDocument(true);
   updateSaveState();
