@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f3f5f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1f28" media="(prefers-color-scheme: dark)">
+<title>editer</title>
+<style>/*__CSS__*/</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <button class="icon" id="btnDrawer" type="button" aria-label="文書と目次" title="文書と目次" data-icon="menu"></button>
+    <input id="docTitle" class="doc-title" type="text" placeholder="無題の文書" aria-label="文書のタイトル" autocomplete="off" spellcheck="false">
+    <span class="save" id="saveState" role="status" aria-live="polite"><span class="dot"></span><span id="saveText">保存済み</span></span>
+    <span class="spacer"></span>
+    <button class="icon" id="btnFind" type="button" aria-label="検索と置換" title="検索と置換（Ctrl/⌘+F）" data-icon="search"></button>
+    <button class="icon" id="btnMore" type="button" aria-label="その他" title="その他" aria-haspopup="menu" data-icon="more"></button>
+  </header>
+
+  <div class="toolbar" id="toolbar" role="toolbar" aria-label="書式"></div>
+
+  <div class="findbar" id="findbar" hidden>
+    <div class="find-row">
+      <input id="findInput" type="search" placeholder="検索" aria-label="検索する文字" autocomplete="off" spellcheck="false" enterkeyhint="search">
+      <span class="find-count" id="findCount"></span>
+      <button class="icon sm" id="findPrev" type="button" aria-label="前へ" title="前へ（Shift+Enter）" data-icon="up"></button>
+      <button class="icon sm" id="findNext" type="button" aria-label="次へ" title="次へ（Enter）" data-icon="down"></button>
+      <button class="tbtn sm" id="findCase" type="button" aria-pressed="false" title="大文字と小文字を区別">Aa</button>
+      <button class="tbtn sm" id="findRegex" type="button" aria-pressed="false" title="正規表現">.*</button>
+      <button class="tbtn sm" id="findToggleReplace" type="button" aria-pressed="false" title="置換（Ctrl/⌘+H）">置換</button>
+      <button class="icon sm" id="findClose" type="button" aria-label="検索を閉じる" title="閉じる（Esc）" data-icon="close"></button>
+    </div>
+    <div class="find-row" id="replaceRow" hidden>
+      <input id="replaceInput" type="text" placeholder="置換後の文字" aria-label="置換後の文字" autocomplete="off" spellcheck="false">
+      <button class="btn sm" id="replaceOne" type="button">置換</button>
+      <button class="btn sm" id="replaceAll" type="button">すべて置換</button>
+    </div>
+  </div>
+
+  <main class="scroller" id="scroller">
+    <div class="page" id="page">
+      <div id="editor"></div>
+    </div>
+  </main>
+
+  <div class="status" id="status">
+    <button class="count-pill" id="countPill" type="button" title="文字数（Ctrl/⌘+Shift+C）"></button>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" aria-label="文書と目次" hidden>
+  <div class="drawer-head">
+    <div class="tabs" role="tablist">
+      <button class="tab" id="tabDocs" type="button" role="tab" aria-selected="true">文書</button>
+      <button class="tab" id="tabOutline" type="button" role="tab" aria-selected="false">目次</button>
+    </div>
+    <button class="icon" id="drawerClose" type="button" aria-label="閉じる" data-icon="close"></button>
+  </div>
+  <div class="drawer-body" id="paneDocs">
+    <div class="docs-actions">
+      <button class="btn primary" id="btnNewDoc" type="button"><span data-icon="plus"></span>新しい文書</button>
+      <input id="docsFilter" type="search" placeholder="文書を探す" aria-label="文書を探す" autocomplete="off">
+    </div>
+    <ul class="docs" id="docsList"></ul>
+  </div>
+  <div class="drawer-body" id="paneOutline" hidden>
+    <ul class="outline" id="outlineList"></ul>
+    <p class="muted" id="outlineEmpty">見出しを付けると、ここに目次ができます。</p>
+  </div>
+</aside>
+
+<div class="pop" id="pop" hidden></div>
+<div class="bubble" id="bubble" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<dialog id="linkDialog" class="dlg">
+  <form method="dialog" id="linkForm">
+    <h2>リンク</h2>
+    <label>表示する文字<input id="linkText" type="text" autocomplete="off"></label>
+    <label>URL<input id="linkUrl" type="text" inputmode="url" placeholder="https://" autocomplete="off" spellcheck="false" required></label>
+    <p class="dlg-error" id="linkError" hidden>このアドレスは使えません（http/https/mailto のみ）。</p>
+    <div class="dlg-actions">
+      <button class="btn" type="button" id="linkRemove">リンクを解除</button>
+      <span class="spacer"></span>
+      <button class="btn" value="cancel" type="button" id="linkCancel">キャンセル</button>
+      <button class="btn primary" value="ok" type="submit">適用</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="countDialog" class="dlg">
+  <form method="dialog">
+    <h2>文字数</h2>
+    <table class="counts" id="countTable"></table>
+    <label class="check-row"><input type="checkbox" id="optShowCount"> 入力中に文字数を表示</label>
+    <div class="dlg-actions"><span class="spacer"></span><button class="btn primary" value="ok">閉じる</button></div>
+  </form>
+</dialog>
+
+<dialog id="settingsDialog" class="dlg">
+  <form method="dialog">
+    <h2>表示設定</h2>
+    <div class="field"><span>書体</span>
+      <div class="seg" id="optFont">
+        <button class="tbtn" type="button" data-v="sans">ゴシック</button>
+        <button class="tbtn" type="button" data-v="serif">明朝</button>
+      </div>
+    </div>
+    <div class="field"><span>文字の大きさ</span>
+      <div class="seg" id="optSize">
+        <button class="tbtn" type="button" data-v="15">小</button>
+        <button class="tbtn" type="button" data-v="17">中</button>
+        <button class="tbtn" type="button" data-v="19">大</button>
+        <button class="tbtn" type="button" data-v="22">特大</button>
+      </div>
+    </div>
+    <div class="field"><span>行間</span>
+      <div class="seg" id="optLine">
+        <button class="tbtn" type="button" data-v="1.5">狭い</button>
+        <button class="tbtn" type="button" data-v="1.75">標準</button>
+        <button class="tbtn" type="button" data-v="2">広い</button>
+      </div>
+    </div>
+    <div class="field"><span>ページ</span>
+      <div class="seg" id="optPage">
+        <button class="tbtn" type="button" data-v="page">用紙</button>
+        <button class="tbtn" type="button" data-v="wide">広め</button>
+        <button class="tbtn" type="button" data-v="full">全幅</button>
+      </div>
+    </div>
+    <div class="field"><span>配色</span>
+      <div class="seg" id="optTheme">
+        <button class="tbtn" type="button" data-v="auto">自動</button>
+        <button class="tbtn" type="button" data-v="light">ライト</button>
+        <button class="tbtn" type="button" data-v="dark">ダーク</button>
+      </div>
+    </div>
+    <div class="dlg-actions"><span class="spacer"></span><button class="btn primary" value="ok">閉じる</button></div>
+  </form>
+</dialog>
+
+<dialog id="confirmDialog" class="dlg">
+  <form method="dialog">
+    <h2 id="confirmTitle"></h2>
+    <p id="confirmText"></p>
+    <div class="dlg-actions"><span class="spacer"></span><button class="btn" value="cancel">キャンセル</button><button class="btn danger" value="ok" id="confirmOk">削除</button></div>
+  </form>
+</dialog>
+
+<input type="file" id="fileImage" accept="image/*" multiple hidden>
+<input type="file" id="fileImport" accept=".md,.markdown,.txt,.html,.htm,text/markdown,text/plain,text/html" hidden>
+<script>/*__JS__*/</script>
+</body>
+</html>
