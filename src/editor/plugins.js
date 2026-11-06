@@ -1,4 +1,4 @@
-import { Plugin, NodeSelection } from 'prosemirror-state';
+import { Plugin, PluginKey, NodeSelection } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import { history } from 'prosemirror-history';
 import { dropCursor } from 'prosemirror-dropcursor';
@@ -7,10 +7,41 @@ import { columnResizing, tableEditing } from 'prosemirror-tables';
 import { search } from 'prosemirror-search';
 import { schema, safeHref } from './schema.js';
 import { buildKeymap, buildInputRules } from './keys.js';
-import { imageFileToDataUrl } from '../util/image.js';
+import { storeFile, imageUrl, cachedUrl } from '../app/images.js';
 
 const N = schema.nodes;
 const M = schema.marks;
+
+// ---------- headings and footnotes, collected with a per-block cache ----------
+// Unchanged top-level blocks are the same objects between edits, so only edited blocks are walked.
+
+const headingCache = new WeakMap();
+const footnoteCache = new WeakMap();
+
+function collect(doc, cache, test, inline) {
+  const out = [];
+  doc.forEach((child, offset) => {
+    let list = cache.get(child);
+    if (!list) {
+      list = [];
+      if (test(child)) list.push({ node: child, rel: 0 });
+      else if (!child.isLeaf && (inline || !child.isTextblock)) {
+        child.descendants((n, p) => {
+          if (test(n)) list.push({ node: n, rel: p + 1 });
+          return inline || !n.isTextblock;
+        });
+      }
+      cache.set(child, list);
+    }
+    for (const it of list) out.push({ node: it.node, pos: offset + it.rel });
+  });
+  return out;
+}
+
+export const headingsOf = (doc) => collect(doc, headingCache, (n) => n.type === N.heading, false)
+  .map(({ node, pos }) => ({ level: node.attrs.level, text: node.textContent, pos }));
+export const footnotesOf = (doc) => collect(doc, footnoteCache, (n) => n.type === N.footnote, true)
+  .map(({ node, pos }) => ({ text: node.attrs.text, pos }));
 
 // ---------- node views ----------
 
@@ -27,6 +58,7 @@ class CheckItemView {
     box.addEventListener('mousedown', (e) => e.preventDefault());
     box.addEventListener('click', (e) => {
       e.preventDefault();
+      if (!view.editable) return;
       const pos = getPos();
       if (pos == null) return;
       const cur = view.state.doc.nodeAt(pos);
@@ -64,22 +96,39 @@ class ImageView {
     this.render();
   }
   render() {
-    const { src, alt, width } = this.node.attrs;
-    if (this.img.getAttribute('src') !== src) this.img.src = src;
+    const { src, alt, width, align } = this.node.attrs;
+    if (this.src !== src) {
+      this.src = src;
+      const ready = cachedUrl(src);
+      if (ready) this.show(ready);
+      else {
+        this.dom.classList.add('loading');
+        imageUrl(src).then((url) => { if (this.src === src) this.show(url); });
+      }
+    }
     this.img.alt = alt || '';
+    this.dom.title = alt || '';
     this.dom.style.width = width ? width + '%' : '';
+    this.dom.dataset.align = align || 'center';
+  }
+  show(url) {
+    this.dom.classList.remove('loading');
+    this.dom.classList.toggle('missing', !url);
+    if (url) this.img.src = url; else this.img.removeAttribute('src');
   }
   startResize(e) {
+    if (!this.view.editable) return;
     e.preventDefault();
     e.stopPropagation();
     const page = this.dom.parentElement;
     const full = page ? page.getBoundingClientRect().width : 600;
     const startX = e.clientX;
     const startW = this.dom.getBoundingClientRect().width;
+    const centered = (this.node.attrs.align || 'center') === 'center';
     this.handle.setPointerCapture(e.pointerId);
     let pct = null;
     const move = (ev) => {
-      const w = Math.max(40, Math.min(full, startW + (ev.clientX - startX) * 2)); // centered: grows both ways
+      const w = Math.max(40, Math.min(full, startW + (ev.clientX - startX) * (centered ? 2 : 1)));
       pct = Math.round((w / full) * 100);
       this.dom.style.width = pct + '%';
     };
@@ -110,16 +159,139 @@ class ImageView {
   ignoreMutation() { return true; }
 }
 
+class FootnoteView {
+  constructor(node) {
+    this.node = node;
+    this.dom = document.createElement('sup');
+    this.dom.className = 'footnote-ref';
+    this.dom.title = node.attrs.text || '（空の脚注）';
+  }
+  update(node) {
+    if (node.type !== this.node.type) return false;
+    this.node = node;
+    this.dom.title = node.attrs.text || '（空の脚注）';
+    return true;
+  }
+  selectNode() { this.dom.classList.add('selected'); }
+  deselectNode() { this.dom.classList.remove('selected'); }
+  ignoreMutation() { return true; }
+}
+
+const tocViews = new Set();
+class TocView {
+  constructor(node, view) {
+    this.node = node;
+    this.view = view;
+    this.dom = document.createElement('nav');
+    this.dom.className = 'toc';
+    this.dom.dataset.type = 'toc';
+    this.dom.addEventListener('mousedown', (e) => { if (e.target.closest('a')) e.preventDefault(); });
+    this.dom.addEventListener('click', (e) => {
+      const a = e.target.closest('a[data-i]');
+      if (!a) return;
+      e.preventDefault();
+      const h = headingsOf(this.view.state.doc)[+a.dataset.i];
+      if (h) this.dom.dispatchEvent(new CustomEvent('editer:goto', { bubbles: true, detail: h.pos }));
+    });
+    tocViews.add(this);
+    this.render();
+  }
+  render() {
+    const hs = headingsOf(this.view.state.doc);
+    const sig = hs.map((h) => h.level + h.text).join('\n');
+    if (sig === this.sig) return;
+    this.sig = sig;
+    this.dom.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'toc-title';
+    title.textContent = '目次';
+    this.dom.append(title);
+    if (!hs.length) {
+      const p = document.createElement('p');
+      p.className = 'toc-empty';
+      p.textContent = '見出しを付けると、ここに目次ができます。';
+      this.dom.append(p);
+      return;
+    }
+    const ul = document.createElement('ul');
+    hs.forEach((h, i) => {
+      const li = document.createElement('li');
+      li.className = 'l' + h.level;
+      const a = document.createElement('a');
+      a.href = '#';
+      a.dataset.i = String(i);
+      a.textContent = h.text || '（空の見出し）';
+      li.append(a);
+      ul.append(li);
+    });
+    this.dom.append(ul);
+  }
+  update(node) { return node.type === this.node.type; }
+  selectNode() { this.dom.classList.add('selected'); }
+  deselectNode() { this.dom.classList.remove('selected'); }
+  stopEvent(e) { return !!(e.target.closest && e.target.closest('a')); }
+  ignoreMutation() { return true; }
+  destroy() { tocViews.delete(this); }
+}
+
+const tocRefresh = new Plugin({
+  view: () => ({
+    update(view, prev) {
+      if (view.state.doc !== prev.doc && tocViews.size) for (const t of tocViews) if (t.view === view) t.render();
+    },
+  }),
+});
+
+// ---------- footnotes listed at the end of the document ----------
+
+const footnoteKey = new PluginKey('footnotes');
+const footnoteList = new Plugin({
+  key: footnoteKey,
+  state: {
+    init: (_, state) => footnotesOf(state.doc),
+    apply: (tr, prev) => (tr.docChanged ? footnotesOf(tr.doc) : prev),
+  },
+  props: {
+    decorations(state) {
+      const notes = footnoteKey.getState(state);
+      if (!notes.length) return null;
+      const sig = notes.map((n) => n.text).join('\u0000');
+      return DecorationSet.create(state.doc, [Decoration.widget(state.doc.content.size, () => {
+        const sec = document.createElement('section');
+        sec.className = 'footnotes';
+        sec.contentEditable = 'false';
+        const ol = document.createElement('ol');
+        notes.forEach((n, i) => {
+          const li = document.createElement('li');
+          li.dataset.i = String(i);
+          li.textContent = n.text || '（空の脚注）';
+          li.title = '押して編集';
+          ol.append(li);
+        });
+        sec.append(ol);
+        sec.addEventListener('mousedown', (e) => e.preventDefault());
+        sec.addEventListener('click', (e) => {
+          const li = e.target.closest('li[data-i]');
+          if (li) sec.dispatchEvent(new CustomEvent('editer:footnote', { bubbles: true, detail: { index: +li.dataset.i } }));
+        });
+        return sec;
+      }, { side: 1, key: 'fn:' + sig, ignoreSelection: true, stopEvent: () => true })]);
+    },
+  },
+});
+
 // ---------- pasting and dropping ----------
 
 function imageFiles(list) {
   return Array.from(list || []).filter((f) => /^image\//.test(f.type));
 }
 
+const notice = (view, msg) => view.dom.dispatchEvent(new CustomEvent('editer:notice', { bubbles: true, detail: msg }));
+
 async function insertImageFiles(view, files, pos) {
   for (const file of files) {
     try {
-      const src = await imageFileToDataUrl(file);
+      const src = await storeFile(file);
       const node = N.image.create({ src, alt: file.name.replace(/\.[^.]+$/, '') });
       const { state } = view;
       let tr;
@@ -132,8 +304,8 @@ async function insertImageFiles(view, files, pos) {
         tr = state.tr.replaceSelectionWith(node);
       }
       view.dispatch(tr.scrollIntoView());
-    } catch (err) {
-      view.dom.dispatchEvent(new CustomEvent('editer:notice', { bubbles: true, detail: '画像を読み込めませんでした（' + file.name + '）' }));
+    } catch {
+      notice(view, '画像を読み込めませんでした（' + file.name + '）');
     }
   }
 }
@@ -195,6 +367,36 @@ const linkifyPaste = new Plugin({
   },
 });
 
+// ---------- long documents: skip laying out what is off screen ----------
+// Text blocks get `content-visibility: auto` (see styles.css) once a document is long. The blocks
+// around the caret are always laid out, so a paragraph or list made by Enter or a typing shortcut is
+// never skipped while the next keystroke arrives.
+
+const LONG_DOC = 150;
+const longDocs = new Plugin({
+  props: {
+    attributes: (state) => (state.doc.childCount >= LONG_DOC ? { class: 'long' } : null),
+    decorations(state) {
+      const { doc, selection } = state;
+      if (doc.childCount < LONG_DOC) return null;
+      const decos = [];
+      const seen = new Set();
+      const around = (pos) => {
+        const { index, offset } = doc.content.findIndex(Math.min(pos, doc.content.size - 1));
+        let start = index > 0 ? offset - doc.child(index - 1).nodeSize : offset;
+        for (let i = Math.max(0, index - 1); i <= Math.min(doc.childCount - 1, index + 1); i++) {
+          const size = doc.child(i).nodeSize;
+          if (!seen.has(i)) { seen.add(i); decos.push(Decoration.node(start, start + size, { class: 'near-caret' })); }
+          start += size;
+        }
+      };
+      around(selection.from);
+      if (selection.to !== selection.from) around(selection.to);
+      return DecorationSet.create(doc, decos);
+    },
+  },
+});
+
 // ---------- placeholder ----------
 
 const placeholder = (text) => new Plugin({
@@ -219,6 +421,9 @@ export function buildPlugins(app) {
     search(),
     pasteAndDrop,
     linkifyPaste,
+    footnoteList,
+    tocRefresh,
+    longDocs,
     placeholder('ここに入力…'),
   ];
 }
@@ -226,4 +431,6 @@ export function buildPlugins(app) {
 export const nodeViews = {
   check_item: (node, view, getPos) => new CheckItemView(node, view, getPos),
   image: (node, view, getPos) => new ImageView(node, view, getPos),
+  footnote: (node) => new FootnoteView(node),
+  toc: (node, view) => new TocView(node, view),
 };

@@ -80,6 +80,21 @@ export function keepFocus(el) {
 }
 
 if (typeof document !== 'undefined') {
+  // arrow keys move between the items of an open menu
+  document.addEventListener('keydown', (e) => {
+    if (!anchor || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+    const items = Array.from(pop().querySelectorAll('button:not([disabled])'));
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement);
+    let next;
+    if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = items.length - 1;
+    else if (i < 0) next = e.key === 'ArrowDown' ? 0 : items.length - 1;
+    else next = (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    if (i < 0 && !pop().contains(document.activeElement) && document.activeElement && document.activeElement.isContentEditable) return; // the editor keeps its arrows
+    e.preventDefault();
+    items[next].focus();
+  });
   document.addEventListener('pointerdown', (e) => {
     if (!anchor) return;
     const p = pop();

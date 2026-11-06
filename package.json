@@ -1,6 +1,6 @@
 {
   "name": "editer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "軽量かつ多機能、使いやすさの総取りを目指したエディタ",
   "license": "MIT",
@@ -8,7 +8,8 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
-    "test": "node scripts/build.mjs && node tests/smoke.mjs"
+    "test": "node scripts/build.mjs && node tests/smoke.mjs",
+    "perf": "node scripts/build.mjs && node tests/perf.mjs"
   },
   "dependencies": {
     "markdown-it": "^14.3.3",

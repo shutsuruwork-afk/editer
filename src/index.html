@@ -14,13 +14,20 @@
   <header class="topbar">
     <button class="icon" id="btnDrawer" type="button" aria-label="文書と目次" title="文書と目次" data-icon="menu"></button>
     <input id="docTitle" class="doc-title" type="text" placeholder="無題の文書" aria-label="文書のタイトル" autocomplete="off" spellcheck="false">
+    <button class="icon sm star" id="btnStar" type="button" aria-label="スターを付ける" title="スター" aria-pressed="false" data-icon="star"></button>
     <span class="save" id="saveState" role="status" aria-live="polite"><span class="dot"></span><span id="saveText">保存済み</span></span>
     <span class="spacer"></span>
+    <button class="icon" id="btnHistory" type="button" aria-label="変更履歴" title="変更履歴" data-icon="history"></button>
     <button class="icon" id="btnFind" type="button" aria-label="検索と置換" title="検索と置換（Ctrl/⌘+F）" data-icon="search"></button>
     <button class="icon" id="btnMore" type="button" aria-label="その他" title="その他" aria-haspopup="menu" data-icon="more"></button>
   </header>
 
   <div class="toolbar" id="toolbar" role="toolbar" aria-label="書式"></div>
+
+  <div class="banner" id="banner" hidden>
+    <span id="bannerText"></span>
+    <button class="btn sm" id="bannerAction" type="button"></button>
+  </div>
 
   <div class="findbar" id="findbar" hidden>
     <div class="find-row">
@@ -29,6 +36,7 @@
       <button class="icon sm" id="findPrev" type="button" aria-label="前へ" title="前へ（Shift+Enter）" data-icon="up"></button>
       <button class="icon sm" id="findNext" type="button" aria-label="次へ" title="次へ（Enter）" data-icon="down"></button>
       <button class="tbtn sm" id="findCase" type="button" aria-pressed="false" title="大文字と小文字を区別">Aa</button>
+      <button class="tbtn sm" id="findWord" type="button" aria-pressed="false" title="単語単位">単語</button>
       <button class="tbtn sm" id="findRegex" type="button" aria-pressed="false" title="正規表現">.*</button>
       <button class="tbtn sm" id="findToggleReplace" type="button" aria-pressed="false" title="置換（Ctrl/⌘+H）">置換</button>
       <button class="icon sm" id="findClose" type="button" aria-label="検索を閉じる" title="閉じる（Esc）" data-icon="close"></button>
@@ -63,9 +71,25 @@
   <div class="drawer-body" id="paneDocs">
     <div class="docs-actions">
       <button class="btn primary" id="btnNewDoc" type="button"><span data-icon="plus"></span>新しい文書</button>
-      <input id="docsFilter" type="search" placeholder="文書を探す" aria-label="文書を探す" autocomplete="off">
+      <input id="docsFilter" type="search" placeholder="タイトルと本文から探す" aria-label="文書を探す" autocomplete="off">
+      <div class="docs-tools">
+        <div class="chips" role="tablist" aria-label="表示する文書">
+          <button class="chip" type="button" data-view="all" aria-pressed="true">すべて</button>
+          <button class="chip" type="button" data-view="starred" aria-pressed="false">スター付き</button>
+          <button class="chip" type="button" data-view="trash" aria-pressed="false">ゴミ箱</button>
+        </div>
+        <select id="docsSort" aria-label="並べ替え">
+          <option value="updated">更新順</option>
+          <option value="created">作成順</option>
+          <option value="title">名前順</option>
+        </select>
+      </div>
     </div>
     <ul class="docs" id="docsList"></ul>
+    <div class="trash-foot" id="trashFoot" hidden>
+      <p class="muted">ゴミ箱の文書は 30 日後に完全に削除されます。</p>
+      <button class="btn sm" id="btnEmptyTrash" type="button">ゴミ箱を空にする</button>
+    </div>
   </div>
   <div class="drawer-body" id="paneOutline" hidden>
     <ul class="outline" id="outlineList"></ul>
@@ -103,7 +127,8 @@
 
 <dialog id="settingsDialog" class="dlg">
   <form method="dialog">
-    <h2>表示設定</h2>
+    <h2>設定</h2>
+    <h3>表示</h3>
     <div class="field"><span>書体</span>
       <div class="seg" id="optFont">
         <button class="tbtn" type="button" data-v="sans">ゴシック</button>
@@ -118,7 +143,7 @@
         <button class="tbtn" type="button" data-v="22">特大</button>
       </div>
     </div>
-    <div class="field"><span>行間</span>
+    <div class="field"><span>標準の行間</span>
       <div class="seg" id="optLine">
         <button class="tbtn" type="button" data-v="1.5">狭い</button>
         <button class="tbtn" type="button" data-v="1.75">標準</button>
@@ -139,6 +164,37 @@
         <button class="tbtn" type="button" data-v="dark">ダーク</button>
       </div>
     </div>
+    <label class="check-row"><input type="checkbox" id="optSpell"> スペルチェック</label>
+    <label class="check-row"><input type="checkbox" id="optShowCount2"> 入力中に文字数を表示</label>
+    <h3>印刷・PDF</h3>
+    <div class="field"><span>用紙</span>
+      <div class="seg" id="optPaper">
+        <button class="tbtn" type="button" data-v="A4">A4</button>
+        <button class="tbtn" type="button" data-v="B5">B5</button>
+        <button class="tbtn" type="button" data-v="Letter">レター</button>
+      </div>
+    </div>
+    <div class="field"><span>向き</span>
+      <div class="seg" id="optOrientation">
+        <button class="tbtn" type="button" data-v="portrait">縦</button>
+        <button class="tbtn" type="button" data-v="landscape">横</button>
+      </div>
+    </div>
+    <div class="field"><span>余白</span>
+      <div class="seg" id="optMargin">
+        <button class="tbtn" type="button" data-v="narrow">狭い</button>
+        <button class="tbtn" type="button" data-v="normal">標準</button>
+        <button class="tbtn" type="button" data-v="wide">広い</button>
+      </div>
+    </div>
+    <label class="check-row"><input type="checkbox" id="optPageNumbers"> ページ番号を付ける</label>
+    <h3>保存</h3>
+    <p class="muted" id="storageInfo">確認しています…</p>
+    <div class="dlg-actions wrap">
+      <button class="btn sm" type="button" id="btnPersist">データを消えにくくする</button>
+      <button class="btn sm" type="button" id="btnBackup"><span data-icon="download"></span>バックアップを作成</button>
+      <button class="btn sm" type="button" id="btnRestore"><span data-icon="upload"></span>バックアップから復元</button>
+    </div>
     <div class="dlg-actions"><span class="spacer"></span><button class="btn primary" value="ok">閉じる</button></div>
   </form>
 </dialog>
@@ -151,8 +207,61 @@
   </form>
 </dialog>
 
+<dialog id="promptDialog" class="dlg">
+  <form method="dialog" id="promptForm">
+    <h2 id="promptTitle"></h2>
+    <label><span id="promptLabel"></span><input id="promptInput" type="text" autocomplete="off"></label>
+    <div class="dlg-actions"><span class="spacer"></span><button class="btn" value="cancel" type="button" id="promptCancel">キャンセル</button><button class="btn primary" value="ok" type="submit" id="promptOk">OK</button></div>
+  </form>
+</dialog>
+
+<dialog id="footnoteDialog" class="dlg">
+  <form method="dialog" id="footnoteForm">
+    <h2>脚注 <span class="muted" id="footnoteNo"></span></h2>
+    <textarea id="footnoteText" rows="4" aria-label="脚注の文章"></textarea>
+    <div class="dlg-actions">
+      <button class="btn" type="button" id="footnoteRemove">脚注を削除</button>
+      <span class="spacer"></span>
+      <button class="btn" type="button" id="footnoteCancel">キャンセル</button>
+      <button class="btn primary" type="submit">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="shortcutsDialog" class="dlg wide">
+  <form method="dialog">
+    <h2>キーボード ショートカット</h2>
+    <div class="shortcuts" id="shortcutsList"></div>
+    <div class="dlg-actions"><span class="spacer"></span><button class="btn primary" value="ok">閉じる</button></div>
+  </form>
+</dialog>
+
+<dialog id="historyDialog" class="dlg history">
+  <div class="history-head">
+    <h2>変更履歴</h2>
+    <span class="spacer"></span>
+    <button class="btn sm" type="button" id="historyName">今の版に名前を付ける</button>
+    <button class="icon sm" type="button" id="historyClose" aria-label="閉じる" data-icon="close"></button>
+  </div>
+  <div class="history-body">
+    <ul class="history-list" id="historyList"></ul>
+    <div class="history-view">
+      <div class="history-actions" id="historyActions" hidden>
+        <button class="icon sm history-back" type="button" id="historyBack" aria-label="一覧に戻る" data-icon="back"></button>
+        <span class="history-when" id="historyWhen"></span>
+        <span class="spacer"></span>
+        <button class="btn sm" type="button" id="historyRename">名前を付ける</button>
+        <button class="btn sm" type="button" id="historyCopy">コピーを作成</button>
+        <button class="btn sm primary" type="button" id="historyRestore">この版を復元</button>
+      </div>
+      <div class="history-preview" id="historyPreview"><p class="muted">左の一覧から版を選ぶと、ここに表示されます。</p></div>
+    </div>
+  </div>
+</dialog>
+
 <input type="file" id="fileImage" accept="image/*" multiple hidden>
-<input type="file" id="fileImport" accept=".md,.markdown,.txt,.html,.htm,text/markdown,text/plain,text/html" hidden>
+<input type="file" id="fileImport" accept=".md,.markdown,.txt,.html,.htm,.docx,text/markdown,text/plain,text/html,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+<input type="file" id="fileBackup" accept=".json,application/json" hidden>
 <script>/*__JS__*/</script>
 </body>
 </html>

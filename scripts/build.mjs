@@ -12,6 +12,7 @@ async function build() {
     esbuild.build({
       entryPoints: [path.join(root, 'src/main.js')],
       bundle: true,
+      alias: { entities: path.join(root, 'src/shims/entities.js') },
       format: 'iife',
       target: ['es2020', 'safari15'],
       minify: true,

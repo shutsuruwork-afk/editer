@@ -47,30 +47,43 @@ export function buildKeymap(app) {
   bind('Mod-Shift-r', C.setAlign('right'));
   bind('Mod-Shift-j', C.setAlign('justify'));
 
+  bind('Mod-.', C.toggleSup);
+  bind('Mod-,', C.toggleSub);
+  bind('Mod-Shift-.', C.stepFontSize(1));
+  bind('Mod-Shift-,', C.stepFontSize(-1));
+  bind('Mod-]', C.changeIndent(1));
+  bind('Mod-[', C.changeIndent(-1));
+
   bind('Alt-ArrowUp', joinUp);
   bind('Alt-ArrowDown', joinDown);
   bind('Escape', (state, dispatch) => (app.onEscape ? app.onEscape() : false) || selectParentNode(state, dispatch));
 
-  const br = chainCommands(exitCode, (state, dispatch) => {
+  bind('Shift-Enter', chainCommands(exitCode, (state, dispatch) => {
     if (dispatch) dispatch(state.tr.replaceSelectionWith(N.hard_break.create()).scrollIntoView());
     return true;
-  });
-  bind('Shift-Enter', br);
-  bind('Mod-Enter', br);
+  }));
+  // Ctrl+Enter: page break (and leaves a code block, as before)
+  bind('Mod-Enter', chainCommands(exitCode, C.insertPageBreak));
 
   bind('Enter', chainCommands(splitListItem(N.list_item), splitCheckItem));
-  bind('Tab', chainCommands(goToNextCell(1), C.indent, (state, dispatch) => {
+  bind('Tab', chainCommands(C.nextCellOrNewRow, C.indent, (state, dispatch) => {
     // outside lists and tables, Tab types a full-width space at the start of a line and a tab elsewhere
-    if (dispatch) dispatch(state.tr.insertText(state.selection.$from.parentOffset === 0 ? '　' : '\t').scrollIntoView());
+    if (dispatch) dispatch(state.tr.insertText(state.selection.$from.parentOffset === 0 ? '\u3000' : '\t').scrollIntoView());
     return true;
   }));
   bind('Shift-Tab', chainCommands(goToNextCell(-1), C.outdent, () => true));
 
-  bind('Mod-k', () => { app.openLinkEditor(); return true; });
+  const call = (name) => () => { if (app[name]) app[name](); return true; };
+  bind('Mod-k', call('openLinkEditor'));
   bind('Mod-f', () => { app.openFind(false); return true; });
   bind('Mod-h', () => { app.openFind(true); return true; });
-  bind('Mod-s', () => { app.saveNow(); return true; });
-  bind('Mod-Shift-c', () => { app.showCounts(); return true; });
+  bind('Mod-s', call('saveNow'));
+  bind('Mod-Shift-c', call('showCounts'));
+  bind('Mod-Alt-f', call('insertFootnote'));
+  bind('Mod-Alt-c', call('copyFormat'));
+  bind('Mod-Alt-v', call('pasteFormat'));
+  bind('Mod-/', call('showShortcuts'));
+  bind('Mod-Alt-Shift-h', call('openHistory'));
 
   return [keymap(k), keymap(baseKeymap)];
 }
