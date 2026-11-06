@@ -314,6 +314,13 @@ function rPr(marks, style) {
   return x ? `<w:rPr>${x}</w:rPr>` : '';
 }
 
+// Word needs a paragraph after a table that ends a cell or the document, and one between two
+// tables (or it joins them). This one is 1pt high, and the importer leaves it out again.
+const filler = (style) => `<w:p><w:pPr>${style ? `<w:pStyle w:val="${style}"/>` : ''}<w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr></w:pPr></w:p>`;
+
+// The paragraph style that tells the importer where a block sits.
+const blockStyle = (ctx) => (ctx.cont ? 'ListParagraph' : ctx.q ? 'Quote' : ctx.th ? 'TableHeading' : '');
+
 const runText = (s) => s.replace(/\r\n?/g, '\n').split(/(\t|\n)/).map((p) => (p === '\t' ? '<w:tab/>' : p === '\n' ? '<w:br/>' : p ? `<w:t xml:space="preserve">${esc(p)}</w:t>` : '')).join('');
 
 /**
@@ -366,8 +373,10 @@ export async function docToDocx(doc, { title = '', loadImage = loadBuiltin } = {
 
   function footnote(text) {
     const id = notes.length + 1;
-    const lines = String(text || '').split('\n');
-    notes.push(`<w:footnote w:id="${id}">${lines.map((line, i) => `<w:p><w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr>${i ? '' : '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r>'}<w:r>${runText((i ? '' : ' ') + line)}</w:r></w:p>`).join('')}</w:footnote>`);
+    const ref = '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r>';
+    const paras = String(text || '').split('\n')
+      .map((line, i) => `<w:p><w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr>${i ? '' : ref}<w:r>${runText((i ? '' : ' ') + line)}</w:r></w:p>`);
+    notes.push(`<w:footnote w:id="${id}">${paras.join('')}</w:footnote>`);
     return id;
   }
 
@@ -401,15 +410,17 @@ export async function docToDocx(doc, { title = '', loadImage = loadBuiltin } = {
   // cont = direct child of a list item, th = inside a header cell
   function para(node, ctx, o = {}) {
     const a = node.attrs, heading = node.type === N.heading;
-    const style = o.style || (heading ? 'Heading' + Math.min(4, Math.max(1, a.level)) : ctx.q ? 'Quote' : ctx.cont ? 'ListParagraph' : ctx.th ? 'TableHeading' : '');
+    const style = o.style || (heading ? 'Heading' + Math.min(4, Math.max(1, a.level)) : blockStyle(ctx));
     let body = (o.prefix ? `<w:r><w:t xml:space="preserve">${o.prefix}</w:t></w:r>` : '') + inline(node);
     if (heading && hasToc) {
       const id = ++bookmarks; // the TOC entries link here
       body = `<w:bookmarkStart w:id="${id}" w:name="_Toc${id}"/>${body}<w:bookmarkEnd w:id="${id}"/>`;
     }
+    // the indent of list item paragraphs and quotes is their nesting, so a.indent is not added there
+    const extra = o.left == null && !ctx.q ? (a.indent || 0) * STEP : 0;
     const props = pPr({
       style, numId: o.numId, ilvl: o.ilvl, quote: ctx.q > 0, line: LINE_TW[a.lineHeight],
-      left: (o.left == null ? ctx.left : o.left) + (a.indent || 0) * STEP, hanging: o.hanging, jc: JC[a.align],
+      left: (o.left == null ? ctx.left : o.left) + extra, hanging: o.hanging, jc: JC[a.align],
     });
     return `<w:p>${props}${body}</w:p>`;
   }
@@ -456,7 +467,7 @@ export async function docToDocx(doc, { title = '', loadImage = loadBuiltin } = {
     cy = Math.max(1, Math.round(cy));
     const id = ++pictures, alt = esc(node.attrs.alt || '');
     const jc = node.attrs.align === 'left' || node.attrs.align === 'right' ? node.attrs.align : 'center';
-    const props = pPr({ style: ctx.q ? 'Quote' : ctx.cont ? 'ListParagraph' : '', quote: ctx.q > 0, left: ctx.left, jc });
+    const props = pPr({ style: blockStyle(ctx), quote: ctx.q > 0, left: ctx.left, jc });
     return `<w:p>${props}<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>`
       + `<wp:docPr id="${id}" name="Picture ${id}" descr="${alt}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>`
       + '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic>'
@@ -506,7 +517,7 @@ export async function docToDocx(doc, { title = '', loadImage = loadBuiltin } = {
         const inner = rect.top === r
           ? blocks(cell.content, { left: 0, d: 0, q: 0, ul: ctx.ul, ol: ctx.ol, maxW: Math.max(STEP, w - 216), cont: false, th: cell.type === N.table_header })
           : '';
-        cells += `<w:tc>${props}${inner.endsWith('</w:p>') ? inner : inner + '<w:p/>'}</w:tc>`; // a cell has to end with a paragraph
+        cells += `<w:tc>${props}${inner.endsWith('</w:p>') ? inner : inner + filler(cell.type === N.table_header ? 'TableHeading' : '')}</w:tc>`;
         c = Math.max(rect.right, c + 1);
       }
       rows += `<w:tr>${r < head ? '<w:trPr><w:tblHeader/></w:trPr>' : ''}${cells}</w:tr>`;
@@ -541,8 +552,8 @@ export async function docToDocx(doc, { title = '', loadImage = loadBuiltin } = {
         const text = n.textContent;
         return `<w:p>${pPr({ style: 'SourceCode', quote: ctx.q > 0, left: ctx.left })}${text ? `<w:r>${runText(text)}</w:r>` : ''}</w:p>`;
       }
-      case N.horizontal_rule: return `<w:p>${pPr({ rule: true, quote: ctx.q > 0, left: ctx.left })}</w:p>`;
-      case N.page_break: return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+      case N.horizontal_rule: return `<w:p>${pPr({ style: ctx.th ? 'TableHeading' : '', rule: true, quote: ctx.q > 0, left: ctx.left })}</w:p>`;
+      case N.page_break: return `<w:p>${pPr({ style: blockStyle(ctx), quote: ctx.q > 0, left: ctx.left })}<w:r><w:br w:type="page"/></w:r></w:p>`;
       case N.toc: return toc();
       case N.bullet_list: case N.ordered_list: case N.checklist: return list(n, ctx);
       case N.image: return picture(n, ctx);
@@ -555,14 +566,14 @@ export async function docToDocx(doc, { title = '', loadImage = loadBuiltin } = {
     let out = '';
     frag.forEach((n) => {
       const x = block(n, ctx);
-      if (x.startsWith('<w:tbl>') && out.endsWith('</w:tbl>')) out += '<w:p/>'; // Word joins adjacent tables
+      if (x.startsWith('<w:tbl>') && out.endsWith('</w:tbl>')) out += filler();
       out += x;
     });
     return out;
   }
 
   let body = blocks(doc.content, { left: 0, d: 0, q: 0, ul: 0, ol: 0, maxW: TEXT_W, cont: false, th: false });
-  if (!body.endsWith('</w:p>')) body += '<w:p/>';
+  if (!body.endsWith('</w:p>')) body += filler();
   const document = XML_HEAD
     + `<w:document xmlns:w="${W_NS}" xmlns:r="${R_NS}" xmlns:wp="${WP_NS}" xmlns:a="${A_NS}" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">`
     + `<w:body>${body}<w:sectPr><w:pgSz w:w="${PAGE_W}" w:h="${PAGE_H}"/>`
@@ -624,7 +635,10 @@ function numberingXml(abstractIds, nums) {
     }
     abs += `<w:abstractNum w:abstractNumId="${id}"><w:multiLevelType w:val="hybridMultilevel"/>${lvls}</w:abstractNum>`;
   }
-  const list = nums.map((n, i) => `<w:num w:numId="${i + 1}"><w:abstractNumId w:val="${n.abs}"/>${n.start >= 0 ? `<w:lvlOverride w:ilvl="${n.ilvl}"><w:startOverride w:val="${n.start}"/></w:lvlOverride>` : ''}</w:num>`);
+  const list = nums.map((n, i) => {
+    const restart = n.start >= 0 ? `<w:lvlOverride w:ilvl="${n.ilvl}"><w:startOverride w:val="${n.start}"/></w:lvlOverride>` : '';
+    return `<w:num w:numId="${i + 1}"><w:abstractNumId w:val="${n.abs}"/>${restart}</w:num>`;
+  });
   return XML_HEAD + `<w:numbering xmlns:w="${W_NS}">${abs}${list.join('')}</w:numbering>`;
 }
 
@@ -716,6 +730,7 @@ function indLeft(el) {
   const v = wval(el, 'left') ?? wval(el, 'start');
   return v != null ? +v || 0 : null;
 }
+const indHanging = (el) => (el ? +wval(el, 'hanging') || 0 : null);
 function lineOf(el) {
   const rule = wval(el, 'lineRule'), line = +wval(el, 'line');
   return line > 0 && (!rule || rule === 'auto') ? line : null;
@@ -800,7 +815,8 @@ async function readDocx(input) {
     if (r.external || !r.type.endsWith('/image')) continue;
     const b = await read(r.target).catch(() => null);
     const type = b && sniff(b);
-    if (type && type !== 'image/bmp') media.set(id, `data:${type};base64,${toBase64(b)}`); // EMF, WMF, TIFF… are left out
+    // EMF, WMF, TIFF… are left out
+    if (type && type !== 'image/bmp') media.set(id, { src: `data:${type};base64,${toBase64(b)}`, w: (imageSize(b) || [0])[0] });
   }
   const nodes = convert(body, { rels, styles, numbering, footnotes, endnotes, media });
   const doc = N.doc.create(null, nodes.length ? nodes : [N.paragraph.create()]);
@@ -839,7 +855,7 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
   function pStyle(id) {
     let c = pCache.get(id || '');
     if (c) return c;
-    c = { heading: null, sz: null, jc: null, left: null, line: null, pbb: null, numId: null, ilvl: null, bl: null, br: null, bb: null };
+    c = { heading: null, sz: null, jc: null, left: null, hanging: null, line: null, pbb: null, numId: null, ilvl: null, bl: null, br: null, bb: null };
     const set = (k, v) => { if (c[k] == null && v != null) c[k] = v; };
     const names = [];
     for (const s of chain(id)) {
@@ -851,6 +867,7 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
       if (s.id !== defP) { // Japanese Word justifies Normal; that is the page default, not a format
         set('jc', wval(wkid(p, 'jc')));
         set('left', indLeft(wkid(p, 'ind')));
+        set('hanging', indHanging(wkid(p, 'ind')));
       }
       set('line', lineOf(wkid(p, 'spacing')));
       if (wkid(p, 'pageBreakBefore')) set('pbb', on(wkid(p, 'pageBreakBefore')));
@@ -922,12 +939,12 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
         fe = ac && wkid(altContent(ac), 'numFmt');
       }
       const fmt = wval(fe) || 'decimal', text = wval(wkid(lvl, 'lvlText')) || '';
-      const sv = wval(wkid(lvl, 'start')), left = indLeft(wkid(wkid(lvl, 'pPr'), 'ind'));
+      const sv = wval(wkid(lvl, 'start')), ind = wkid(wkid(lvl, 'pPr'), 'ind'), left = indLeft(ind), hanging = indHanging(ind);
       const start = ov.start != null ? ov.start : sv != null && sv !== '' ? +sv || 0 : 1;
       // a level without a visible marker (pandoc writes these) continues the item above
-      if (fmt === 'none' || (fmt === 'bullet' && !text.trim())) info = { kind: 'blank', left };
-      else if (fmt === 'bullet' || (text && !/%\d/.test(text))) info = { kind: 'bullet', style: bulletStyle(text), left };
-      else info = { kind: 'ordered', style: ORDER_STYLE[fmt] || (/counting|ideograph|chinese|japanese|korean|taiwanese/i.test(fmt) ? 'cjk-ideographic' : 'decimal'), start, left };
+      if (fmt === 'none' || (fmt === 'bullet' && !text.trim())) info = { kind: 'blank', left, hanging };
+      else if (fmt === 'bullet' || (text && !/%\d/.test(text))) info = { kind: 'bullet', style: bulletStyle(text), left, hanging };
+      else info = { kind: 'ordered', style: ORDER_STYLE[fmt] || (/counting|ideograph|chinese|japanese|korean|taiwanese/i.test(fmt) ? 'cjk-ideographic' : 'decimal'), start, left, hanging };
     }
     nCache.set(key, info);
     return info;
@@ -967,7 +984,7 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
       }
     };
     walk(el, []);
-    return paras.join('\n').trim();
+    return paras.join('\n').replace(/^[ \t\u3000]/, '').replace(/\n+$/, ''); // the space after the number is not text
   }
   const notesOf = (d, tag) => {
     const m = new Map();
@@ -1064,17 +1081,17 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
     const pos = el.getElementsByTagNameNS(WP_NS, 'positionH')[0];
     const al = pos && /^(left|center|right)$/.exec(((pos.getElementsByTagNameNS(WP_NS, 'align')[0] || {}).textContent || '').trim());
     for (const b of el.getElementsByTagNameNS(A_NS, 'blip')) {
-      const src = !inTextBox(b, el) && media.get(rid(b, 'embed'));
-      if (src) out.push({ img: { src, alt: pr ? pr.getAttribute('descr') || pr.getAttribute('title') || '' : '', cx: ext ? +ext.getAttribute('cx') : 0, align: al ? al[1] : null } });
+      const m = !inTextBox(b, el) && media.get(rid(b, 'embed'));
+      if (m) out.push({ img: { ...m, alt: pr ? pr.getAttribute('descr') || pr.getAttribute('title') || '' : '', cx: ext ? +ext.getAttribute('cx') : 0, align: al ? al[1] : null } });
     }
     // VML: older pictures and the fallback of shapes
     for (const im of el.getElementsByTagNameNS(V_NS, 'imagedata')) {
-      const src = !inTextBox(im, el) && media.get(rid(im, 'id'));
-      if (!src) continue;
+      const m = !inTextBox(im, el) && media.get(rid(im, 'id'));
+      if (!m) continue;
       const shape = im.parentNode;
-      const m = /(?:^|;)\s*width:\s*([\d.]+)\s*(pt|in|cm|mm|px)?/i.exec((shape.getAttribute && shape.getAttribute('style')) || '');
-      const cx = m ? parseFloat(m[1]) * { pt: 12700, in: 914400, cm: 360000, mm: 36000, px: EMU_PX }[(m[2] || 'px').toLowerCase()] : 0;
-      out.push({ img: { src, alt: im.getAttributeNS(O_NS, 'title') || (shape.getAttribute && shape.getAttribute('alt')) || '', cx, align: null } });
+      const w = /(?:^|;)\s*width:\s*([\d.]+)\s*(pt|in|cm|mm|px)?/i.exec((shape.getAttribute && shape.getAttribute('style')) || '');
+      const cx = w ? parseFloat(w[1]) * { pt: 12700, in: 914400, cm: 360000, mm: 36000, px: EMU_PX }[(w[2] || 'px').toLowerCase()] : 0;
+      out.push({ img: { ...m, alt: im.getAttributeNS(O_NS, 'title') || (shape.getAttribute && shape.getAttribute('alt')) || '', cx, align: null } });
     }
     for (const r of el.getElementsByTagNameNS(V_NS, 'rect')) if (r.getAttributeNS(O_NS, 'hr') === 't') { out.push({ block: N.horizontal_rule.create() }); break; }
     // text boxes flow into the document after their paragraph
@@ -1112,6 +1129,8 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
           case 'noBreakHyphen': text('-'); break;
           case 'sym': text(symbol(c)); break;
           case 'drawing': case 'pict': case 'object': picture(c, out, width); break;
+          // ruby (furigana): the base text stays, the reading is left out
+          case 'ruby': { const base = wkid(c, 'rubyBase'); if (base) inlines(base, out, link, paraSz, width); break; }
           case 'footnoteReference': case 'endnoteReference':
             out.push(N.footnote.create({ text: (n === 'footnoteReference' ? fnotes : enotes).get(wval(c, 'id')) || '' }));
             break;
@@ -1179,8 +1198,10 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
     // numbered headings stay headings
     const numbering = !level && !st.code && numId && numId !== '0' ? numInfo(numId, ilvl) : null;
     const jc = wval(d('jc')) || st.jc;
-    const indent = indLeft(d('ind'));
-    const left = indent != null ? indent : numbering && numbering.left != null ? numbering.left : st.left || 0;
+    // direct formatting, then the numbering level, then the style
+    const ind = d('ind'), fromNum = numbering && numbering.left != null;
+    const left = ind && indLeft(ind) != null ? indLeft(ind) : fromNum ? numbering.left : st.left || 0;
+    const hanging = ind && wval(ind, 'hanging') != null ? indHanging(ind) : fromNum ? numbering.hanging : st.hanging || 0;
     const bd = d('pBdr');
     const pick = (s, k) => { const v = side(bd, s); return v != null ? v : st[k]; };
     const bl = pick('left', 'bl'), br = pick('right', 'br');
@@ -1188,7 +1209,9 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
     if (bb == null) bb = side(bd, 'top');
     if (bb == null) bb = st.bb;
     const pbb = d('pageBreakBefore') ? on(d('pageBreakBefore')) : st.pbb;
-    const lv = lineOf(d('spacing'));
+    const sp = d('spacing');
+    if (!out.length && wval(sp, 'lineRule') === 'exact' && +wval(sp, 'line') <= 40) return; // a filler, see above
+    const lv = lineOf(sp);
     const lineHeight = lv && lv !== (st.line || docLine) ? nearestLine(lv) : null;
 
     // "☐ " / "☑ " at the start makes a checklist item (also Wingdings boxes and content controls)
@@ -1196,16 +1219,14 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
     if (!level && !st.code) {
       const i = out.findIndex((x) => x && !x.block && !x.img && !x.blocks);
       const t = out[i];
-      const m = t && t.isText && /^\s*[☐☑☒]\s?/.exec(t.text);
+      const m = t && t.isText && /^\s*([☐☑☒])(\s?)/.exec(t.text);
       if (m) {
-        checked = m[0].trim() !== '☐';
+        checked = m[1] !== '☐';
         const rest = t.text.slice(m[0].length);
         out[i] = rest ? schema.text(rest, t.marks) : null;
+        // a box of its own (a content control) leaves the space to the next run
         const next = out[i + 1];
-        if (!rest && next && next.isText && /^\s/.test(next.text)) {
-          const r2 = next.text.replace(/^\s+/, '');
-          out[i + 1] = r2 ? schema.text(r2, next.marks) : null;
-        }
+        if (!rest && !m[2] && next && next.isText && /^\s/.test(next.text)) out[i + 1] = next.text.length > 1 ? schema.text(next.text.slice(1), next.marks) : null;
       }
     }
 
@@ -1213,8 +1234,7 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
     const quote = st.quote || (bl && !br);
     let q = 0;
     if (quote) {
-      const prev = items[items.length - 1];
-      if (listish) q = (prev && prev.q) || 1;
+      if (listish) q = 1; // stays in the quote it is in, see build()
       else if (st.quote) q = 1 + Math.max(0, Math.round((left - (st.left || 0)) / QUOTE_STEP));
       else q = Math.max(1, Math.round(left / QUOTE_STEP));
       q = Math.min(q, 8);
@@ -1241,7 +1261,7 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
     // left and qi let the builder put indented blocks into the list item above them
     const qi = quote && !listish ? { style: st.quote ? st.left || 0 : null } : null;
     const push = (node, extra) => {
-      items.push(Object.assign({ node, q, left, qi, listPara: st.listPara }, first ? { list, cont } : list || cont != null ? { cont: true } : null, extra));
+      items.push(Object.assign({ node, q, quoted: quote, left, marker: left - hanging, qi, listPara: st.listPara }, first ? { list, cont } : list || cont != null ? { cont: true } : null, extra));
       first = false;
     };
     for (const g of groups) {
@@ -1262,12 +1282,14 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
         else push(N.paragraph.create(attrs, g));
       } else if (g.img) {
         const align = g.img.align || (jc === 'center' ? 'center' : jc === 'right' || jc === 'end' ? 'right' : 'left');
-        push(N.image.create({ src: g.img.src, alt: g.img.alt, width: pct(g.img.cx, Math.max(STEP, width - Math.max(0, left))), align }));
+        // shown at its own size (96 dpi): no width, as for an image put in the editor as it is
+        const natural = g.img.w > 0 && Math.abs(g.img.cx - g.img.w * EMU_PX) <= EMU_PX;
+        push(N.image.create({ src: g.img.src, alt: g.img.alt, width: natural ? null : pct(g.img.cx, Math.max(STEP, width - Math.max(0, left))), align }));
       } else if (g.block) push(g.block);
       else g.blocks.forEach((n) => push(n));
     }
-    const sp = d('sectPr');
-    if (sp && breaks.has(sp)) items.push({ node: N.page_break.create(), q });
+    const sect = d('sectPr');
+    if (sect && breaks.has(sect)) items.push({ node: N.page_break.create(), q });
   }
 
   // ----- tables -----
@@ -1313,9 +1335,10 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
         c.rowspan++;
       }
     }));
+    // header paragraphs, next to quotes, lists, code or headings that have styles of their own
     const headCell = (tc) => {
-      const ps = wkids(tc, 'p');
-      return ps.length > 0 && ps.every((p) => pStyle(wval(wkid(wkid(p, 'pPr'), 'pStyle')) || defP).th);
+      const sts = wkids(tc, 'p').map((p) => pStyle(wval(wkid(wkid(p, 'pPr'), 'pStyle')) || defP));
+      return sts.some((x) => x.th) && sts.every((x) => x.th || x.quote || x.listPara || x.code || x.heading);
     };
     const background = (tc) => {
       const s = wkid(wkid(tc, 'tcPr'), 'shd');
@@ -1363,8 +1386,11 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
       if (n === 'p') paragraph(c, items, width);
       else if (n === 'tbl') {
         const t = !hidden() && table(c, width);
-        const ind = wkid(wkid(c, 'tblPr'), 'tblInd');
-        if (t) items.push({ node: t, left: ind && wval(ind, 'type') !== 'pct' ? +wval(ind, 'w') || 0 : 0 });
+        const ind = wkid(wkid(c, 'tblPr'), 'tblInd'), left = ind && wval(ind, 'type') !== 'pct' ? +wval(ind, 'w') || 0 : 0;
+        const prev = items[items.length - 1];
+        // a table indented like the quote before it stays in that quote
+        const quoted = prev && prev.q && prev.qi && left > 0 && Math.abs(left - prev.left) <= 40;
+        if (t) items.push({ node: t, left, q: quoted ? prev.q : 0, qi: quoted ? prev.qi : null });
       } else if (n === 'sdt') {
         const gallery = wkid(wkid(wkid(c, 'sdtPr'), 'docPartObj'), 'docPartGallery');
         if (/table of contents/i.test(wval(gallery) || '')) items.push({ node: N.toc.create() });
@@ -1378,7 +1404,8 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
   function attach(frame, it) {
     const item = frame.item, rel = (it.left || 0) - frame.left;
     let rq = 0;
-    if (it.qi) rq = Math.min(8, it.qi.style != null ? 1 + Math.max(0, Math.round((rel - it.qi.style) / QUOTE_STEP)) : Math.max(1, Math.round(rel / QUOTE_STEP)));
+    // a border alone is a quote of its own only if the list is not in a quote already
+    if (it.qi) rq = Math.min(8, it.qi.style != null ? 1 + Math.max(0, Math.round((rel - it.qi.style) / QUOTE_STEP)) : Math.max(frame.quoted ? 0 : 1, Math.round(rel / QUOTE_STEP)));
     const qs = item.qs || (item.qs = [item]);
     while (qs.length - 1 > rq) qs.pop();
     while (qs.length - 1 < rq) {
@@ -1406,15 +1433,19 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
           attach(lists[lists.length - 1], it);
           continue;
         }
+        // Other blocks go by indent: under the item's text, right of its marker. A plain paragraph
+        // needs the list paragraph style as well (Word's own continuation), else it may just be indented.
         let k = lists.length - 1;
-        while (k >= 0 && !(lists[k].left <= it.left + 40)) k--;
+        const loose = it.node.type === N.paragraph && !it.listPara && !it.qi;
+        while (k >= 0 && (loose || !(it.left >= lists[k].left - 40 && it.left > lists[k].marker + 40))) k--;
         if (k >= 0 || it.listPara) {
           lists.length = Math.max(k, 0) + 1;
           attach(lists[lists.length - 1], it);
           continue;
         }
       }
-      const q = it.q || 0;
+      // a list paragraph with a quote border stays in the quote around it
+      const q = it.list && it.quoted ? Math.max(1, quotes.length - 1) : it.q || 0;
       if (q !== quotes.length - 1) {
         lists = [];
         while (quotes.length - 1 > q) quotes.pop();
@@ -1443,10 +1474,12 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
             kids: [],
           };
           (top ? top.item : host).kids.push(el);
-          top = { level: L.level, kind: L.kind, numId: L.numId, el, item: null, left: 0 };
+          top = { level: L.level, kind: L.kind, numId: L.numId, el, item: null, left: 0, marker: 0 };
           lists.push(top);
         }
         top.left = it.left || 0;
+        top.marker = it.marker || 0;
+        top.quoted = !!it.quoted;
         top.item = { type: L.kind === 'check' ? N.check_item : N.list_item, attrs: L.kind === 'check' ? { checked: L.checked } : null, kids: [it.node] };
         top.el.kids.push(top.item);
       } else {
@@ -1467,11 +1500,7 @@ function convert(body, { rels, styles: stylesDoc, numbering, footnotes, endnotes
   function flow(el, width) {
     const items = [];
     blocksOf(el, items, width);
-    const nodes = build(items);
-    // Word keeps an empty paragraph after a table that ends a cell or the document
-    const last = nodes[nodes.length - 1];
-    if (nodes.length > 1 && last.type === N.paragraph && !last.content.size && nodes[nodes.length - 2].type === N.table) nodes.pop();
-    return nodes;
+    return build(items);
   }
 
   return flow(body, pageWidth);

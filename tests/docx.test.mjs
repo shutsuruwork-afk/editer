@@ -41,7 +41,7 @@ const server = http.createServer(async (req, res) => {
   }
   try {
     const data = await readFile(path.join(dir, name));
-    res.writeHead(200, { 'content-type': name.endsWith('.js') ? 'text/javascript' : 'application/octet-stream' });
+    res.writeHead(200, { 'content-type': name.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'application/octet-stream' });
     res.end(data);
   } catch {
     res.writeHead(404);
@@ -52,14 +52,15 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}/`;
 
 const has = (cmd) => spawnSync('sh', ['-c', `command -v ${cmd}`]).status === 0;
-const sh = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf8', timeout: 180000, ...opts });
+// LibreOffice and pandoc keep their own temporary files with ours as well
+const sh = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf8', timeout: 180000, env: { ...process.env, TMPDIR: dir }, ...opts });
 const loProfile = `-env:UserInstallation=file://${path.join(dir, 'lo-profile')}`;
 const soffice = (...args) => sh('soffice', [loProfile, '--headless', ...args], { cwd: dir });
 
 let failed = 0;
 async function test(name, fn) {
   try { await fn(); console.log('ok  ', name); }
-  catch (e) { failed++; console.log('FAIL', name, '\n     ', String(e && e.stack || e).split('\n').slice(0, 8).join('\n      ')); }
+  catch (e) { failed++; console.log('FAIL', name, '\n     ', String((e && e.stack) || e).split('\n').slice(0, 24).join('\n      ')); }
 }
 const skip = (name, why) => console.log('skip', name, `(${why})`);
 
@@ -283,8 +284,99 @@ await test('round trip: images', async () => {
   assert.match(imgs[1].attrs.src, /^data:image\/(jpeg|png);base64,/); // WebP is redrawn for older Word
   assert.equal(imgs[1].attrs.align, 'right');
   assert.equal(imgs[1].attrs.alt, 'WebP 画像');
-  assert.ok(imgs[1].attrs.width > 10 && imgs[1].attrs.width < 30, `natural size, got ${imgs[1].attrs.width}%`);
+  assert.equal(imgs[1].attrs.width, null, 'an image at its own size keeps no width');
   assert.equal(rt.content[rt.content.length - 1].type, 'paragraph');
+});
+
+await test('round trip: blocks nested in list items, quotes and cells come back unchanged', async () => {
+  const r = await page.evaluate(async () => {
+    const { schema, docToDocx, docxToDoc } = window.D;
+    const n = (type, attrs, content) => schema.node(type, attrs, content);
+    const P = (s) => n('paragraph', null, s ? [schema.text(s)] : []);
+    const canvas = document.createElement('canvas');
+    canvas.width = 40;
+    canvas.height = 40;
+    canvas.getContext('2d').fillRect(0, 0, 40, 40);
+    const png = canvas.toDataURL('image/png');
+    const doc = n('doc', null, [
+      n('blockquote', null, [P('引用内の段落'), n('bullet_list', null, [n('list_item', null, [P('引用内リスト'), n('ordered_list', null, [n('list_item', null, [P('引用内の入れ子')])])])]), P('引用の最後')]),
+      n('ordered_list', null, [
+        n('list_item', null, [P('項目一'), n('blockquote', null, [P('項目内の引用'), n('blockquote', null, [P('さらに内側')])]), n('heading', { level: 3 }, [schema.text('項目内の見出し')]),
+          n('code_block', null, [schema.text('code in item')]), n('image', { src: png, width: 30 }), n('horizontal_rule'), P('項目内の段落'),
+          n('bullet_list', null, [n('list_item', null, [P('入れ子'), P('入れ子の二段落目')])]), P('外側に戻る')]),
+        n('list_item', null, [P('項目二')]),
+      ]),
+      n('table', null, [n('table_row', null, [
+        n('table_cell', null, [P('外側'), n('table', null, [n('table_row', null, [n('table_cell', null, [P('内側')]), n('table_cell', null, [n('image', { src: png, width: 100 })])])])]),
+        n('table_cell', null, [n('checklist', null, [n('check_item', { checked: true }, [P('セル内タスク')])])]),
+      ])]),
+      n('code_block'), n('heading', { level: 2 }), P(''), n('horizontal_rule'), n('page_break'), n('toc'),
+    ]);
+    const back = await docxToDoc(await (await docToDocx(doc)).arrayBuffer());
+    return { before: JSON.stringify(doc.toJSON()), after: JSON.stringify(back.doc.toJSON()) };
+  });
+  assert.equal(r.after, r.before);
+});
+
+await test('round trip: random documents stay valid and keep their text', async () => {
+  const problems = await page.evaluate(async () => {
+    const { schema, docToDocx, docxToDoc } = window.D;
+    let seed = 20261105;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    const pick = (a) => a[Math.floor(rnd() * a.length)];
+    const words = ['日本語', 'テキスト', 'abc', ' 空白 ', 'x<y&z', '「引用」', '😀', 'タブ\tあり'];
+    const marks = [[], ['strong'], ['em', 'underline'], ['strike'], ['sup'], ['sub'], ['code'], [['fontSize', { size: 14 }]], [['fontFamily', { family: 'serif' }]],
+      [['color', { color: 'blue' }]], [['highlight', { color: 'green' }]], [['link', { href: 'https://example.com/' }]]];
+    const canvas = document.createElement('canvas');
+    canvas.width = 30;
+    canvas.height = 20;
+    canvas.getContext('2d').fillRect(0, 0, 30, 20);
+    const png = canvas.toDataURL('image/png');
+    const inline = () => Array.from({ length: Math.floor(rnd() * 4) }, () => {
+      const r = rnd();
+      if (r < 0.1) return schema.node('hard_break');
+      if (r < 0.2) return schema.node('footnote', { text: pick(words) });
+      return schema.text(pick(words), pick(marks).map((m) => (typeof m === 'string' ? schema.mark(m) : schema.mark(m[0], m[1]))));
+    });
+    const para = () => schema.node('paragraph', pick([null, { align: 'center' }, { indent: 1 }, { lineHeight: '1.5' }]), inline());
+    const blocks = (d, n) => Array.from({ length: n }, () => block(d));
+    const block = (d) => {
+      const r = rnd();
+      if (d > 3 || r < 0.35) return para();
+      if (r < 0.42) return schema.node('heading', { level: 1 + Math.floor(rnd() * 4) }, inline());
+      if (r < 0.5) return schema.node('blockquote', null, blocks(d + 1, 1 + Math.floor(rnd() * 2)));
+      if (r < 0.55) return schema.node('code_block', null, rnd() < 0.5 ? [schema.text('code\n  x')] : []);
+      if (r < 0.58) return schema.node(pick(['horizontal_rule', 'page_break', 'toc']));
+      if (r < 0.62) return schema.node('image', { src: png, width: rnd() < 0.5 ? 40 : null, align: pick(['left', 'center', 'right']) });
+      if (r < 0.78) {
+        const type = pick(['bullet_list', 'ordered_list', 'checklist']), item = type === 'checklist' ? 'check_item' : 'list_item';
+        const items = Array.from({ length: 1 + Math.floor(rnd() * 3) }, () => schema.node(item, item === 'check_item' ? { checked: rnd() < 0.5 } : null, [para(), ...blocks(d + 1, Math.floor(rnd() * 2))]));
+        return schema.node(type, type === 'ordered_list' ? { order: 1 + Math.floor(rnd() * 5), style: pick([null, 'upper-roman']) } : type === 'bullet_list' ? { style: pick([null, 'dash']) } : null, items);
+      }
+      const cols = 1 + Math.floor(rnd() * 3);
+      return schema.node('table', null, Array.from({ length: 1 + Math.floor(rnd() * 3) }, (_, i) => schema.node('table_row', null,
+        Array.from({ length: cols }, () => schema.node(i === 0 && rnd() < 0.5 ? 'table_header' : 'table_cell', { background: pick([null, 'gray']) }, blocks(d + 1, 1 + Math.floor(rnd() * 2)))))));
+    };
+    const count = (doc) => {
+      const c = {};
+      doc.descendants((n) => { if (!n.isText && !/^(paragraph|table_row|table_cell|table_header|list_item|check_item|bullet_list|ordered_list|checklist|blockquote|code_block)$/.test(n.type.name)) c[n.type.name] = (c[n.type.name] || 0) + 1; });
+      return JSON.stringify(Object.entries(c).sort());
+    };
+    const out = [];
+    for (let i = 0; i < 150; i++) {
+      const doc = schema.node('doc', null, blocks(0, 1 + Math.floor(rnd() * 8)));
+      try {
+        const back = (await docxToDoc(await (await docToDocx(doc)).arrayBuffer())).doc;
+        back.check();
+        if (back.textContent.replace(/\s+/g, '') !== doc.textContent.replace(/\s+/g, '')) out.push(`#${i} text`);
+        if (count(back) !== count(doc)) out.push(`#${i} ${count(doc)} -> ${count(back)}`);
+      } catch (e) {
+        out.push(`#${i} ${(e.cause && e.cause.stack) || e.stack}`);
+      }
+    }
+    return out;
+  });
+  assert.deepEqual(problems, []);
 });
 
 // ---------- the exported file outside the browser ----------
@@ -297,6 +389,10 @@ await test('exported file: zip integrity (unzip -t)', async () => {
   for (const part of ['[Content_Types].xml', '_rels/.rels', 'docProps/core.xml', 'docProps/app.xml', 'word/document.xml', 'word/styles.xml',
     'word/numbering.xml', 'word/footnotes.xml', 'word/settings.xml', 'word/_rels/document.xml.rels', 'word/media/image1.png']) assert.ok(list.includes(part), part);
   assert.match(sh('unzip', ['-v', rtFile]).stdout, /Defl:N/);
+  // both test images are 120×60; sizes come from the file header or the redrawn WebP
+  const extents = [...sh('unzip', ['-p', rtFile, 'word/document.xml']).stdout.matchAll(/<wp:extent cx="(\d+)" cy="(\d+)"\/>/g)];
+  assert.equal(extents.length, 2);
+  for (const [, cx, cy] of extents) assert.ok(Math.abs(cx / cy - 2) < 0.01, `aspect ratio ${cx}/${cy}`);
   // every XML part is well formed
   for (const part of list.filter((f) => /\.(xml|rels)$/.test(f))) {
     const xml = sh('unzip', ['-p', rtFile, part.replace(/\[/g, '[[]')]).stdout; // [ is a wildcard for unzip
@@ -556,7 +652,8 @@ await test('import: Word-style markup (fields, revisions, content controls, text
       + '<w:del w:id="2" w:author="a"><w:r><w:delText>削除</w:delText></w:r></w:del>'
       + r('蛍光', '<w:highlight w:val="yellow"/>') + r('赤14', '<w:color w:val="FF0000"/><w:sz w:val="28"/>') + r('黒', '<w:color w:val="000000"/>')
       + r('明朝', '<w:rFonts w:ascii="ＭＳ 明朝" w:eastAsia="ＭＳ 明朝" w:hAnsi="ＭＳ 明朝"/>') + r('クーリエ', '<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/>')
-      + r('二重線', '<w:dstrike/>') + r('隠し', '<w:vanish/>') + r('普通', '<w:b w:val="0"/><w:sz w:val="21"/>')),
+      + r('二重線', '<w:dstrike/>') + r('隠し', '<w:vanish/>') + r('普通', '<w:b w:val="0"/><w:sz w:val="21"/>')
+      + `<w:r><w:ruby><w:rubyPr><w:rubyAlign w:val="distributeSpace"/></w:rubyPr><w:rt>${r('かんじ')}</w:rt><w:rubyBase>${r('漢字')}</w:rubyBase></w:ruby></w:r>`),
     '<w:p><w:sdt><w:sdtPr><w14:checkbox><w14:checked w14:val="1"/></w14:checkbox></w:sdtPr><w:sdtContent><w:r><w:t>☒</w:t></w:r></w:sdtContent></w:sdt>' + r(' 済み') + '</w:p>',
     p('<w:r><w:sym w:font="Wingdings" w:char="F0A8"/></w:r>' + r(' 未')),
     p(r('文の前') + '<w:r><w:br w:type="page"/></w:r>' + r('改ページ後')),
@@ -588,8 +685,8 @@ await test('import: Word-style markup (fields, revisions, content controls, text
       + '<w:style w:type="character" w:styleId="a4"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style>'
       + '<w:style w:type="character" w:styleId="a5"><w:name w:val="footnote reference"/><w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style></w:styles>',
     'word/numbering.xml': `<?xml version="1.0"?><w:numbering ${NS}>`
-      + '<w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val=""/><w:rPr><w:rFonts w:ascii="Wingdings" w:hAnsi="Wingdings"/></w:rPr></w:lvl>'
-      + '<w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val=""/></w:lvl></w:abstractNum>'
+      + '<w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="\uf06c"/><w:rPr><w:rFonts w:ascii="Wingdings" w:hAnsi="Wingdings"/></w:rPr></w:lvl>'
+      + '<w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="\uf0a7"/></w:lvl></w:abstractNum>'
       + '<w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimalFullWidth"/><w:lvlText w:val="%1．"/></w:lvl></w:abstractNum>'
       + '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num></w:numbering>',
     'word/footnotes.xml': `<?xml version="1.0"?><w:footnotes ${NS}><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:id="1"><w:p><w:r><w:footnoteRef/></w:r>${r(' 脚注の文')}</w:p></w:footnote></w:footnotes>`,
@@ -613,7 +710,7 @@ await test('import: Word-style markup (fields, revisions, content controls, text
   assert.deepEqual(marksOf(json, 'クーリエ'), { fontFamily: { family: 'mono' } });
   assert.ok(marksOf(json, '二重線').strike);
   const fieldPara = all(json, (x) => x.type === 'paragraph' && text(x).startsWith('複合'))[0];
-  assert.equal(text(fieldPara), '複合フィールドのリンク簡易7スマート挿入蛍光赤14黒明朝クーリエ二重線普通');
+  assert.equal(text(fieldPara), '複合フィールドのリンク簡易7スマート挿入蛍光赤14黒明朝クーリエ二重線普通漢字');
   assert.equal(fieldPara.attrs.align, null, 'the justified Normal style is not a format');
   assert.deepEqual(Object.keys(marksOf(json, '黒')), []);
   assert.deepEqual(Object.keys(marksOf(json, '普通')), []);

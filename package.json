@@ -8,7 +8,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
-    "test": "node scripts/build.mjs && node tests/smoke.mjs",
+    "test": "node scripts/build.mjs && node tests/smoke.mjs && node tests/docx.test.mjs",
     "perf": "node scripts/build.mjs && node tests/perf.mjs"
   },
   "dependencies": {

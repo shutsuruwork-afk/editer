@@ -24,7 +24,7 @@ const tmp = await mkdtemp(path.join(os.tmpdir(), 'editer-test-'));
 const browser = await chromium.launch();
 let failed = 0, passed = 0;
 async function test(name, fn) {
-  if (process.env.ONLY && !name.includes(process.env.ONLY)) return;
+  if (process.env.ONLY && !new RegExp(process.env.ONLY).test(name)) return;
   try { await fn(); passed++; console.log('ok  ', name); }
   catch (e) {
     failed++;
@@ -607,10 +607,56 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAIAAAAt/+nTAAAAKUlEQVR
     assert.equal(await page.evaluate(async () => (await window.editer.store.listDocs()).length), before + 1);
   });
 
+  await test('Word: download from the menu, open it again', async () => {
+    await newDoc(page);
+    await page.fill('#docTitle', 'ワード往復');
+    await page.press('#docTitle', 'Enter'); // Enter in the title moves on to the text
+    await page.keyboard.type('# 章の見出し');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('本文に **太字** と脚注');
+    await page.keyboard.press(`${mod}+Alt+f`);
+    await page.waitForSelector('#footnoteDialog[open]');
+    await page.fill('#footnoteText', 'ワードの脚注');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => !document.querySelector('#footnoteDialog').open);
+    await page.keyboard.press('End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('- 箇条書き');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await page.setInputFiles('#fileImage', { name: 'pic.png', mimeType: 'image/png', buffer: PNG });
+    await page.waitForSelector('#editor .ProseMirror figure.img img[src^="blob:"]');
+    await saved(page);
+    await page.click('#btnMore');
+    const [download] = await Promise.all([page.waitForEvent('download'), page.locator('.menu-item', { hasText: 'Microsoft Word' }).click()]);
+    // the headless test browser replaces non-ASCII file names with "download"; real browsers keep them
+    assert.match(download.suggestedFilename(), /^(ワード往復\.docx|download)$/);
+    const file = path.join(tmp, 'roundtrip.docx');
+    await download.saveAs(file);
+    const before = await page.evaluate(() => window.editer.docs.session.current.id);
+    await page.setInputFiles('#fileImport', file);
+    await page.waitForFunction((id) => window.editer.docs.session.current.id !== id, before, { timeout: 10000 }).catch(async () => {
+      throw new Error('no new document; toast: ' + await page.locator('#toast').textContent());
+    });
+    assert.equal(await page.inputValue('#docTitle'), 'ワード往復');
+    const json = await docJSON(page);
+    assert.equal(nodesOf(json, 'heading')[0].content[0].text, '章の見出し');
+    assert.ok(marksOf(json, '太字').some((m) => m.type === 'strong'));
+    assert.equal(nodesOf(json, 'footnote')[0].attrs.text, 'ワードの脚注');
+    assert.equal(nodesOf(json, 'bullet_list').length, 1);
+    assert.equal(nodesOf(json, 'image').length, 1);
+    // the imported picture moves into the image store on the first save
+    await saved(page);
+    await page.evaluate(() => { window.editer.docs.markDirty(); return window.editer.docs.save(); });
+    assert.match(nodesOf(await docJSON(page), 'image')[0].attrs.src, /^idb:/);
+  });
+
   await test('backup and restore into another browser profile', async () => {
     await page.locator('#editor .ProseMirror').click();
     await page.setInputFiles('#fileImage', { name: 'pic.png', mimeType: 'image/png', buffer: PNG });
-    await page.waitForSelector('.ProseMirror figure.img img[src^="blob:"]');
+    await page.waitForSelector('#editor .ProseMirror figure.img img[src^="blob:"]').catch(async (e) => {
+      throw new Error(e.message.split('\n')[0] + ' / images: ' + await page.evaluate(() => JSON.stringify(Array.from(document.querySelectorAll('#editor figure.img')).map((f) => [f.className, f.querySelector('img').getAttribute('src')?.slice(0, 30), f.getBoundingClientRect().width]))));
+    });
     await saved(page);
     await page.click('#btnMore');
     await page.locator('.menu-item', { hasText: '設定' }).click();
@@ -625,11 +671,12 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAIAAAAt/+nTAAAAKUlEQVR
     await other.page.waitForFunction(() => /復元しました/.test(document.querySelector('#toast').textContent));
     const titles = await other.page.evaluate(async () => (await window.editer.store.listDocs()).map((m) => m.title).sort());
     assert.ok(titles.includes('テスト文書') && titles.includes('読み込んだ題'), JSON.stringify(titles));
+    // a restored document with a picture shows it (the image came along in the backup)
     await other.page.evaluate(async () => {
-      const m = (await window.editer.store.listDocs()).find((x) => x.title === '読み込んだ題');
+      const m = (await window.editer.store.listDocs()).find((x) => x.images && x.images.length);
       await window.editer.docs.openDoc(m.id);
     });
-    await other.page.waitForSelector('.ProseMirror figure.img img[src^="blob:"]');
+    await other.page.waitForSelector('#editor .ProseMirror figure.img img[src^="blob:"]');
     // restoring the same file again adds nothing
     await other.page.evaluate(() => { for (const d of document.querySelectorAll('dialog[open]')) d.close(); });
     await other.page.click('#btnMore');
